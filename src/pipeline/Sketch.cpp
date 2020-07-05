@@ -118,6 +118,15 @@ Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
     Eigen::Vector2f last_point(0,0);
     CurvatureStrokeSegment segment;
     for (int i = 0; i < path->npts - 1; i += 2) {
+
+        // make sure this is not a duplicate of the previous point
+        if (i > 0) {
+            if (path->pts[i-2] == path->pts[i] && path->pts[i-1] == path->pts[i+1]) {
+                std::cout << "found duplicate" << std::endl;
+                continue;
+            }
+        }
+
         std::shared_ptr<StrokePoint> point = std::make_shared<StrokePoint>();
         point->coordinates = Eigen::Vector2f(path->pts[i], path->pts[i+1]);
         if (!first_point_of_segment) {
@@ -136,18 +145,21 @@ Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
         float forward_dist = 1;
         if (i == 0) {
             forward_dir = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();// + SMOOTH_DIRECTION;
         } else if (i == path->npts - 2) {
             backward_dir = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();//+ SMOOTH_DIRECTION;
         } else {
             forward_dir = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm(); //+ SMOOTH_DIRECTION;
             backward_dir = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();//+ SMOOTH_DIRECTION;
         }
 
         point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized();
+        if (std::isnan(point->tangent_dir.x())) {
+            std::cout << "stop" << std::endl;
+        }
         segment.seg.push_back(point);
 
         if (add_segment_to_stroke || (i == path->npts - 2)) {
@@ -186,26 +198,26 @@ void Sketch::mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> 
                             if (face2strokepoints.find(f) != face2strokepoints.end()) {
                                 face2strokepoints[f].push_back(point);
                             } else { face2strokepoints[f] = std::vector{point}; };
-                            f->valid = false;
+                            //f->valid = false;
                         } else {
                             if (segment_idx > 0 || point_idx > 0) {
                             // check if previous line segment crossed triangle. There is never any need to check the next line segment ahead of this point.
+                                std::shared_ptr<StrokePoint> prev_point;
                                 if (point_idx > 0) {
-                                    std::shared_ptr<StrokePoint> prev_point = strokes[stroke_idx][segment_idx].seg[point_idx-1];
-                                    if (lineInTriangle(point->coordinates, prev_point->coordinates, v1, v2, v3)) {
-                                        if (face2lines.find(f) != face2lines.end()) {
-                                            face2lines[f].push_back(std::make_pair(point, prev_point));
-                                        } else { face2lines[f] = std::vector{std::make_pair(point, prev_point)}; }
-                                        f->valid = false;
-                                    }
+                                    prev_point = strokes[stroke_idx][segment_idx].seg[point_idx-1];
                                 } else if (point_idx == 0) {
-                                    std::shared_ptr<StrokePoint> prev_point = strokes[stroke_idx][segment_idx-1].seg[(strokes[stroke_idx][segment_idx-1].seg.size()-1)];
-                                    if (lineInTriangle(point->coordinates, prev_point->coordinates, v1, v2, v3)) {
-                                        if (face2lines.find(f) != face2lines.end()) {
-                                            face2lines[f].push_back(std::make_pair(point, prev_point));
-                                        } else { face2lines[f] = std::vector{std::make_pair(point, prev_point)}; }
-                                        f->valid = false;
+                                    prev_point = strokes[stroke_idx][segment_idx-1].seg[(strokes[stroke_idx][segment_idx-1].seg.size()-1)];
+                                }
+                                if (lineInTriangle(point->coordinates, prev_point->coordinates, v1, v2, v3)) {
+                                    LineIntersection intersection;
+                                    intersection.points = std::make_pair(point, prev_point);
+                                    intersection.dir = (point->coordinates - prev_point->coordinates).normalized();
+                                    if (face2lines.find(f) != face2lines.end()) {
+                                        face2lines[f].push_back(intersection);
+                                    } else {
+                                        face2lines[f] = std::vector{intersection};
                                     }
+                                    //f->valid = false;
                                 }
                             }
                         }

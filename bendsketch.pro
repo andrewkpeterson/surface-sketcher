@@ -37,6 +37,7 @@ INCLUDEPATH += /usr/local/include/eigen3 \
                /usr/local/include/CGAL \
                /usr/local/include/boost
 
+
 FORMS += \
     mainwindow.ui
 

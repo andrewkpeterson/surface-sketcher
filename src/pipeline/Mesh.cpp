@@ -73,7 +73,6 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
                     num_verts++;
                 }
             }
-
         }
     }
 
@@ -108,22 +107,26 @@ void Mesh::forEachConstTriangle(const std::function<void(std::shared_ptr<const F
 }
 
 void Mesh::forEachPairOfNeighboringTriangles(const std::function<void(Face*, Face*)> &func) {
-    std::unordered_set<std::shared_ptr<Face>> visited_faces;
+    std::unordered_set<Face*> visited_faces;
     for (auto it = index2face.begin(); it != index2face.end(); it++) {
         for (int i = 0; i < it->second->neighbors.size(); i++) {
-            func(it->second.get(), it->second->neighbors[i]);
+            if (visited_faces.find(it->second->neighbors[i]) == visited_faces.end()) {
+                func(it->second.get(), it->second->neighbors[i]);
+            }
         }
-        visited_faces.insert(it->second);
+        visited_faces.insert(it->second.get());
     }
 }
 
 void Mesh::forEachConstPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const {
-    std::unordered_set<std::shared_ptr<Face>> visited_faces;
+    std::unordered_set<Face*> visited_faces;
     for (auto it = index2face.begin(); it != index2face.end(); it++) {
         for (int i = 0; i < it->second->neighbors.size(); i++) {
-            func(it->second.get(), it->second->neighbors[i]);
+            if (visited_faces.find(it->second->neighbors[i]) == visited_faces.end()) {
+                func(it->second.get(), it->second->neighbors[i]);
+            }
         }
-        visited_faces.insert(it->second);
+        visited_faces.insert(it->second.get());
     }
 }
 
