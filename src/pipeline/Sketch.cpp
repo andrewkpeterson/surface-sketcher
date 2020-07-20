@@ -76,7 +76,7 @@ Eigen::Vector3f calcBarycentricCoordinates(std::shared_ptr<Face> f, std::shared_
 
 Sketch::Sketch(std::string svg_file) {
     NSVGimage *image;
-    image = nsvgParseFromFile(svg_file.c_str(), "px", 1);
+    image = nsvgParseFromFile(svg_file.c_str(), "px", SVG_SIZE_PARAM);
 
     width = image->width;
     height = image->height;
@@ -145,21 +145,36 @@ Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
         float forward_dist = 1;
         if (i == 0) {
             forward_dir = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();// + SMOOTH_DIRECTION;
+            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
         } else if (i == path->npts - 2) {
             backward_dir = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();//+ SMOOTH_DIRECTION;
+            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
         } else {
             forward_dir = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm(); //+ SMOOTH_DIRECTION;
+            forward_dist = (Eigen::Vector2f(path->pts[i+2], path->pts[i+3]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
             backward_dir = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
-            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();//+ SMOOTH_DIRECTION;
+            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
         }
 
         point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized();
-        if (std::isnan(point->tangent_dir.x())) {
+
+        // if this statement executes, then the next point is a duplicate of the current point.
+        // We must look ahead two points to compute the tangent directions
+        if ((std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) && i < path->npts - 5 &&
+            (path->pts[i+4] != path->pts[i] && path->pts[i+5] != path->pts[i+1])) {
+            forward_dir = (Eigen::Vector2f(path->pts[i+4], path->pts[i+5]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
+            forward_dist = (Eigen::Vector2f(path->pts[i+4], path->pts[i+5]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            backward_dir = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).normalized();
+            backward_dist = (Eigen::Vector2f(path->pts[i-2], path->pts[i-1]) - Eigen::Vector2f(path->pts[i], path->pts[i+1])).norm();
+            point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized();
+        } else if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
+            point->tangent_dir = (backward_dir / backward_dist).normalized();
+        }
+
+        if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
             std::cout << "stop" << std::endl;
         }
+
         segment.seg.push_back(point);
 
         if (add_segment_to_stroke || (i == path->npts - 2)) {

@@ -65,6 +65,7 @@ private:
     void mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> &strokes);
 
     static constexpr float SMOOTH_DIRECTION = .001;
+    static constexpr int SVG_SIZE_PARAM = 10;
 };
 
 #endif // SKETCH_H

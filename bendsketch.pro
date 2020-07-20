@@ -19,6 +19,7 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     src/pipeline/DirectionFieldSolver.cpp \
+    src/pipeline/HeightFieldSolver.cpp \
     src/pipeline/Mesh.cpp \
     src/pipeline/Sketch.cpp \
     src/pipeline/Triangulate.cpp
@@ -26,12 +27,21 @@ SOURCES += \
 HEADERS += \
     mainwindow.h \
     src/pipeline/DirectionFieldSolver.h \
+    src/pipeline/HeightFieldSolver.h \
     src/pipeline/Mesh.h \
     src/pipeline/Pipeline.h \
     src/pipeline/Sketch.h \
     src/pipeline/Triangulate.h \
     src/utils/OBJWriter.h \
-    lib/nanosvg/src/nanosvg.h
+    nanosvg/src/nanosvg.h \
+    autodiff/forward.hpp \
+    autodiff/reverse.hpp \
+    autodiff/common/eigen.hpp \
+    autodiff/common/meta.hpp \
+    autodiff/forward/eigen.hpp \
+    autodiff/forward/forward.hpp \
+    autodiff/reverse/eigen.hpp \
+    autodiff/reverse/reverse.hpp \
 
 INCLUDEPATH += /usr/local/include/eigen3 \
                /usr/local/include/CGAL \

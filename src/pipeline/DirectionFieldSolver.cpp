@@ -6,7 +6,7 @@
 #include <cmath>
 #include "Sketch.h"
 
-inline void addToSparseMap(const std::pair<int, int> &p, std::complex<double> c, std::map<std::pair<int,int>, std::complex<double>> &m) {
+inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
     if (m.find(p) == m.end()) {
         m[p] = c;
     } else {
@@ -15,64 +15,106 @@ inline void addToSparseMap(const std::pair<int, int> &p, std::complex<double> c,
 }
 
 void DirectionFieldSolver::addCoefficientsForEConstraint(std::shared_ptr<Face> f, double mult, Eigen::Vector2f dir,
-                                                         std::map<std::pair<int,int>, std::complex<double>> &m, Eigen::VectorXcd &b) {
+                                                         std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
     std::complex<double> u(dir.x(), dir.y());
+    std::complex<double> u2 = std::pow(u, 2.0);
+    std::complex<double> u4 = std::pow(u, 4.0);
+    double cR = u2.real();
+    double cI = u2.imag();
+    double dR = u4.real();
+    double dI = u4.imag();
 
-    std::complex<double> val1 = mult * std::pow(u, 4.0);
-    std::pair<int, int> p1(f->index * 2, f->index * 2);
-    addToSparseMap(p1, val1, m);
+    {
+        double val1 = mult * (cR * cR + cI * cI);
+        std::pair<int, int> p1(f->index * 4, f->index * 4);
+        addToSparseMap(p1, val1, m);
 
-    std::complex<double> val2 = -mult * std::pow(u, 2.0f);
-    std::pair<int, int> p2(f->index * 2, (f->index * 2) + 1);
-    addToSparseMap(p2, val2, m);
+        double val2 = -mult * cR;
+        std::pair<int, int> p2(f->index * 4, (f->index * 4) + 2);
+        addToSparseMap(p2, val2, m);
 
-    std::complex<double> val3 = -mult * std::pow(u, 6.0f);
-    b(f->index * 2) = val3;
+        double val3 = -mult * cI;
+        std::pair<int, int> p3(f->index * 4, (f->index * 4) + 3);
+        addToSparseMap(p3, val3, m);
 
-    std::complex<double> val4 = std::complex<float>(mult, 0);
-    std::pair<int, int> p4((f->index * 2) + 1, (f->index) * 2 + 1);
-    addToSparseMap(p4, val4, m);
+        double val4 = -mult * (dR * cR + dI * cI);
+        b(f->index * 4) = val4;
+    }
 
-    std::complex<double> val5 = -mult * std::pow(u, 2.0f);
-    std::pair<int, int> p5((f->index * 2) + 1, (f->index * 2));
-    addToSparseMap(p5, val5, m);
+    {
+        double val1 = mult * (cR * cR - cI * cI);
+        std::pair<int, int> p1((f->index * 4) + 1, (f->index * 4) + 1);
+        addToSparseMap(p1, val1, m);
 
-    std::complex<double> val6 = mult * std::pow(u, 4.0f);
-    b((f->index * 2) + 1) = val6;
+        double val2 = mult * cI;
+        std::pair<int, int> p2((f->index * 4) + 1, (f->index * 4) + 2);
+        addToSparseMap(p2, val2, m);
+
+        double val3 = -mult * cR;
+        std::pair<int, int> p3((f->index * 4) + 1, (f->index * 4) + 3);
+        addToSparseMap(p3, val3, m);
+
+        double val4 = mult * (cI * dR - cR * dI);
+        b((f->index * 4) + 1) = val4;
+    }
+
+    {
+        double val1 = -mult * cR;
+        std::pair<int, int> p1((f->index * 4) + 2, (f->index * 4));
+        addToSparseMap(p1, val1, m);
+
+        double val2 = mult * cI;
+        std::pair<int, int> p2((f->index * 4) + 2, (f->index * 4) + 1);
+        addToSparseMap(p2, val2, m);
+
+        double val3 = mult;
+        std::pair<int, int> p3((f->index * 4) + 2, (f->index * 4) + 2);
+        addToSparseMap(p3, val3, m);
+
+        double val4 = mult * dR;
+        b((f->index * 4) + 2) = val4;
+    }
+
+    {
+        double val1 = -mult * cI;
+        std::pair<int, int> p1((f->index * 4) + 3, (f->index * 4));
+        addToSparseMap(p1, val1, m);
+
+        double val2 = -mult * cR;
+        std::pair<int, int> p2((f->index * 4) + 3, (f->index * 4) + 1);
+        addToSparseMap(p2, val2, m);
+
+        double val3 = mult;
+        std::pair<int, int> p3((f->index * 4) + 3, (f->index * 4) + 3);
+        addToSparseMap(p3, val3, m);
+
+        double val4 = mult * dR;
+        b((f->index * 4) + 3) = val4;
+    }
+
 }
 
-void DirectionFieldSolver::addCoefficientsForESmooth(Face *f, Face *g, double mult, std::map<std::pair<int,int>, std::complex<double>> &m) {
-    std::complex<double> c(mult, 0);
+void DirectionFieldSolver::addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m) {
 
-    std::pair<int, int> p1(f->index * 2, f->index * 2);
-    addToSparseMap(p1, c, m);
+    for (int i = 0; i < 4; i++) {
+        std::pair<int, int> p1((f->index * 4) + i, (f->index * 4) + i);
+        addToSparseMap(p1, val, m);
 
-    std::pair<int, int> p2(f->index * 2, g->index * 2);
-    addToSparseMap(p2, -c, m);
+        std::pair<int, int> p2((f->index * 4) + i, (g->index * 4) + i);
+        addToSparseMap(p2, -val, m);
 
-    std::pair<int, int> p3((f->index * 2) + 1, (f->index * 2) + 1);
-    addToSparseMap(p3, c, m);
+        std::pair<int, int> p3((g->index * 4) + i, (g->index * 4) + i);
+        addToSparseMap(p3, val, m);
 
-    std::pair<int, int> p4((f->index * 2) + 1, (g->index * 2) + 1);
-    addToSparseMap(p4, -c, m);
-
-    std::pair<int, int> p5(g->index * 2, g->index * 2);
-    addToSparseMap(p5, c, m);
-
-    std::pair<int, int> p6(g->index * 2, f->index * 2);
-    addToSparseMap(p6, -c, m);
-
-    std::pair<int, int> p7((g->index * 2) + 1, (g->index * 2) + 1);
-    addToSparseMap(p7, c, m);
-
-    std::pair<int, int> p8((g->index * 2) + 1, (f->index * 2) + 1);
-    addToSparseMap(p8, -c, m);
+        std::pair<int, int> p4((g->index * 4) + i, (f->index * 4) + i);
+        addToSparseMap(p4, -val, m);
+    }
 }
 
-void DirectionFieldSolver::initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXcd &x) {
+void DirectionFieldSolver::initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXd &x) {
     m.forEachTriangle([&](std::shared_ptr<Face> f) {
-        std::complex<double> a = x(f->index * 2);
-        std::complex<double> b = x((f->index * 2) + 1);
+        std::complex<double> a(x(f->index * 4), x((f->index * 4) + 1));
+        std::complex<double> b(x((f->index * 4) + 2), x((f->index * 4) + 3));
 
         std::complex<double> z = 1.0 / 2.0 * (a + std::sqrt(a * a - 4.0 * b));
         std::complex<double> u_complex = std::sqrt(z); // does it matter if the positive or negative square root is taken?
@@ -87,27 +129,25 @@ void DirectionFieldSolver::initializeDirectionFieldFromABVector(Mesh &m, Eigen::
 }
 
 void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sketch) {
-    using SparseMat = Eigen::SparseMatrix<std::complex<double>>;
-    using CTriplet = Eigen::Triplet<std::complex<double>>;
 
     int num_faces = mesh.getNumTriangles();
 
     std::vector<CTriplet> coefficients;
 
-    SparseMat A(num_faces*2, num_faces*2); // multiply faces by 2 to account for a and b values for each face
-    Eigen::VectorXcd b = Eigen::VectorXcd::Zero(num_faces*2);
-    std::map<std::pair<int,int>, std::complex<double>> sparse_map;
+    SparseMat A(num_faces*4, num_faces*4); // multiply faces by 4 to account for real and imaginary parts of a and b values for each face
+    Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
+    std::map<std::pair<int,int>, double> sparse_map;
 
     // add coefficients for E_smooth
     mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);
-        double mult = (1.0 / mesh.getTotalArea()) * 2 * efg * SCALE_FACTOR;
-        addCoefficientsForESmooth(f, g, mult, sparse_map);
+        double val = (1.0 / mesh.getTotalArea()) * 2 * efg;
+        addCoefficientsForESmooth(f, g, val, sparse_map);
     });
 
     // add coefficients for E_constraint
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
-        double mult = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_C * f->area * SCALE_FACTOR;
+        double mult = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_C * f->area;
 
         if (sketch.checkStrokePoints(f)) {
             for (int i = 0; i < sketch.getConstStrokePoints(f).size(); i++) {
@@ -124,13 +164,14 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
         }
     });
 
+
     // add coefficients for E_ortho
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
-        int idx = f->index * 2;
-        double val = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_O * f->area * SCALE_FACTOR;
-        std::complex<double> c(val,0);
-        std::pair<int, int> p(idx, idx);
-        addToSparseMap(p, c, sparse_map);
+        double val = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_O * f->area;
+        std::pair<int, int> p1(f->index * 4, f->index * 4);
+        addToSparseMap(p1, val, sparse_map);
+        std::pair<int, int> p2((f->index * 4) + 1, (f->index * 4) + 1);
+        addToSparseMap(p2, val, sparse_map);
     });
 
     // turn the map into triples and put the triples into the sparse matrix
@@ -142,22 +183,61 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
     // solve the system of linear equations
     A.makeCompressed();
 
-    //Eigen::LeastSquaresConjugateGradient<SparseMat> solver(A);
-    //Eigen::BiCGSTAB<SparseMat> solver(A);
-    //Eigen::SparseQR<SparseMat, Eigen::COLAMDOrdering<int>> solver(A);
+    //printSparseMatrix(A);
 
+    Eigen::ConjugateGradient<SparseMat> solverCG;
+    auto A_transpose = SparseMat(A.transpose());
+    auto A_final = SparseMat(A_transpose * A);
+    A_final.makeCompressed();
+    auto b_final = Eigen::VectorXd(A_transpose * -b);
+    solverCG.analyzePattern(A_final);
+    std::cout << solverCG.info() << std::endl;
+    solverCG.compute(A_final);
+    std::cout << solverCG.info() << std::endl;
+    //solverCG.setTolerance(.000001);
+    solverCG.setMaxIterations(100000);
+    Eigen::VectorXd xCG = solverCG.solve(b_final);
+    //Eigen::VectorXd x = solver.solveWithGuess(b_final, Eigen::VectorXcd::Ones(num_faces*2));
+    std::cout << solverCG.info() << std::endl;
+    std::cout << "iters: " << solverCG.iterations() << std::endl;
+    std::cout << "error: " << solverCG.error() << std::endl;
+
+    /*
+    // for checking rank
+    Eigen::SparseQR<SparseMat, Eigen::COLAMDOrdering<int>> solver;
+    solver.compute(A);
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+    std::cout << "size: " << A.cols() << std::endl;
+    std::cout << "rank: " << solver.rank() << std::endl;
+    */
+
+    // set pivot threshold??
     Eigen::SparseLU<SparseMat> solver(A);
     std::cout << solver.lastErrorMessage() << std::endl;
     solver.analyzePattern(A);
     std::cout << solver.lastErrorMessage() << std::endl;
     solver.factorize(A);
+    std::cout << "Determinant of matrix: " << solver.determinant() << std::endl;
+    std::cout << "Log of determinant of of matrix: " << solver.logAbsDeterminant() << std::endl;
     std::cout << solver.lastErrorMessage() << std::endl;
-    Eigen::VectorXcd x = solver.solve(-b);
+    Eigen::VectorXd x = solver.solve(-b);
+    std::cout << solver.info() << std::endl;
     std::cout << solver.lastErrorMessage() << std::endl;
+
     // use the solution to initialize u and v for each face
     initializeDirectionFieldFromABVector(mesh, x);
 }
 
 void DirectionFieldSolver::optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch) {
 
+}
+
+void DirectionFieldSolver::printSparseMatrix(const SparseMat mat) {
+    for (int row = 0; row < mat.rows(); row++) {
+        for (int col = 0; col < mat.cols(); col++) {
+            std::cout << mat.coeff(row, col) << " ";
+        }
+        std::cout << std::endl;
+    }
 }

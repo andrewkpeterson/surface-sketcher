@@ -83,6 +83,7 @@ void Triangulate::triangulate(Mesh &mesh, const Sketch &sketch) {
     // TODO: Process lines so that the entire boundary is a single line with no
     // separate intersecting segments. This will result in a better triangulation
     // without any bowtie-like shapes.
+    /*
     for (int i = 0; i < sketch.getBoundaryStrokes().size(); i++) {
 
         // ensure that the boundary is closed by connecting the later endpoint of this line to the
@@ -113,26 +114,20 @@ void Triangulate::triangulate(Mesh &mesh, const Sketch &sketch) {
 
         polygon.push_back(Point(best_endpoint.x(), best_endpoint.y()));
     }
+    */
 
     // test polygon
-    /*
-    polygon.push_back(Point(-.5,-1));
-    polygon.push_back(Point(-1,1));
-    polygon.push_back(Point(1,1));
-    polygon.push_back(Point(.5,-1));
-    polygon.push_back(Point(1,-2));
-    polygon.push_back(Point(-1,-2));
-    polygon.push_back(Point(-.5,-1));
-    */
+    polygon.push_back(Point(0,0));
+    polygon.push_back(Point(0,100));
+    polygon.push_back(Point(100,100));
+    polygon.push_back(Point(100,0));
 
 
     CDT &cdt = mesh.getCDT();
 
     cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
 
-    const float fineness = .1; // smaller fineness number makes mesh have more triangles (.1 is good)
-    CGAL::refine_Delaunay_mesh_2(cdt, Criteria(0.125, fineness));
-    //CGAL::lloyd_optimize_mesh_2(cdt, CGAL::parameters::max_iteration_number = 10);
+    CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
 
     // mark which faces are actually inside the constraints. If we don't do this step
     // then the entire convex hull will be triangulated.
@@ -146,7 +141,7 @@ void Triangulate::triangulate(Mesh &mesh, const Sketch &sketch) {
 
     // get rid of artifacts by recursively getting rid of all faces that have 1 neighbor.
     // this will result in a mesh with much fewer artifacts
-    removeArtifacts(cdt, domain_info);
+    //removeArtifacts(cdt, domain_info); **********************************************************
 
     // initialize mesh struct
     std::map<Face_handle, bool> info;

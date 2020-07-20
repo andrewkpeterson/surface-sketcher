@@ -9,21 +9,24 @@ class Mesh;
 class Sketch;
 struct Face;
 
+using SparseMat = Eigen::SparseMatrix<double>;
+using CTriplet = Eigen::Triplet<double>;
+
 class DirectionFieldSolver
 {
 public:
     static void initializeDirectionField(Mesh &mesh, const Sketch &sketch);
     static void optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch);
+    static void printSparseMatrix(const SparseMat);
 
 private:
     static void addCoefficientsForEConstraint(std::shared_ptr<Face> f, double mult, Eigen::Vector2f dir,
-                                              std::map<std::pair<int,int>, std::complex<double>> &m, Eigen::VectorXcd &b);
-    static void addCoefficientsForESmooth(Face *f, Face *g, double mult, std::map<std::pair<int,int>, std::complex<double>> &m);
-    static void initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXcd &x);
+                                              std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
+    static void addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m);
+    static void initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXd &x);
 
-    static constexpr const float OMEGA_C = 10e3;
-    static constexpr const float OMEGA_O = 10e-5;
-    static constexpr const float SCALE_FACTOR = 100; // factor for scaling A and b so that matrix is not mistaken as non-singular
+    static constexpr const double OMEGA_C = 1; //10e3;
+    static constexpr const double OMEGA_O = 1; //10e-5;
 };
 
 #endif // DIRECTIONFIELDSOLVER_H
