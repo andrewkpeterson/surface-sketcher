@@ -10,13 +10,12 @@ class Sketch;
 struct Face;
 
 using SparseMat = Eigen::SparseMatrix<double>;
-using CTriplet = Eigen::Triplet<double>;
+using Triplet = Eigen::Triplet<double>;
 
-class DirectionFieldSolver
+class DirectionFieldInitializer
 {
 public:
     static void initializeDirectionField(Mesh &mesh, const Sketch &sketch);
-    static void optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch);
     static void printSparseMatrix(const SparseMat);
 
 private:
@@ -24,9 +23,16 @@ private:
                                               std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
     static void addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m);
     static void initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXd &x);
+    static inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
+        if (m.find(p) == m.end()) {
+            m[p] = c;
+        } else {
+            m[p] += c;
+        }
+    }
 
-    static constexpr const double OMEGA_C = 1; //10e3;
-    static constexpr const double OMEGA_O = 1; //10e-5;
+    static constexpr const double OMEGA_C = 10e3;
+    static constexpr const double OMEGA_O = 10e-5;
 };
 
 #endif // DIRECTIONFIELDSOLVER_H

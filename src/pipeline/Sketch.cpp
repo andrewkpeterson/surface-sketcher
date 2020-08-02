@@ -5,6 +5,13 @@
 #include "Mesh.h"
 #include <iostream>
 
+Eigen::Vector3f Sketch::StrokePoint::coords3d() {
+    assert(triangle != nullptr);
+    return triangle->vertices[0]->coords3d() * barycentric_coordinates[0] +
+           triangle->vertices[1]->coords3d() * barycentric_coordinates[1] +
+           triangle->vertices[2]->coords3d() * barycentric_coordinates[2];
+}
+
 float crossp(Eigen::Vector2f p1, Eigen::Vector2f p2, Eigen::Vector2f p3)
 {
     return (p1.x() - p3.x()) * (p2.y() - p3.y()) - (p2.x() - p3.x()) * (p1.y() - p3.y());
@@ -66,12 +73,31 @@ Eigen::Vector3f calcBarycentricCoordinates(std::shared_ptr<Face> f, std::shared_
     Eigen::Vector3f x(p->coordinates.x(),p->coordinates.y(),1);
     Eigen::Matrix3f A;
     Eigen::Vector2f v1(f->vertices[0]->coords);
-    Eigen::Vector2f v2(f->vertices[0]->coords);
-    Eigen::Vector2f v3(f->vertices[0]->coords);
+    Eigen::Vector2f v2(f->vertices[1]->coords);
+    Eigen::Vector2f v3(f->vertices[2]->coords);
     A << v1.x(), v2.x(), v3.x(),
          v1.y(), v2.y(), v3.y(),
          1, 1, 1;
     return A.inverse() * x;
+}
+
+std::shared_ptr<Sketch::StrokePoint> Sketch::getStrokePointByFlattenedIndex(const Stroke &stroke, int idx) {
+    assert(idx < getLengthOfStrokeInPoints(stroke));
+    int i = 0;
+    while (i < stroke.size() && idx > 0) {
+        idx -= stroke[i].seg.size();
+        i++;
+    }
+    if (idx == 0) { return stroke[i].seg[0]; }
+    else { return stroke[i-1].seg[-idx]; }
+}
+
+int Sketch::getLengthOfStrokeInPoints(const Stroke &stroke) {
+    int length = 0;
+    for (int i = 0; i < stroke.size(); i++) {
+        length += stroke[i].seg.size();
+    }
+    return length;
 }
 
 Sketch::Sketch(std::string svg_file) {

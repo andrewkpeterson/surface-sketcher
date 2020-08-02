@@ -1,4 +1,4 @@
-#include "DirectionFieldSolver.h"
+#include "DirectionFieldInitializer.h"
 #include "Mesh.h"
 #include <Eigen/Sparse>
 #include <complex>
@@ -6,15 +6,7 @@
 #include <cmath>
 #include "Sketch.h"
 
-inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
-    if (m.find(p) == m.end()) {
-        m[p] = c;
-    } else {
-        m[p] += c;
-    }
-}
-
-void DirectionFieldSolver::addCoefficientsForEConstraint(std::shared_ptr<Face> f, double mult, Eigen::Vector2f dir,
+void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Face> f, double mult, Eigen::Vector2f dir,
                                                          std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
     std::complex<double> u(dir.x(), dir.y());
     std::complex<double> u2 = std::pow(u, 2.0);
@@ -94,7 +86,7 @@ void DirectionFieldSolver::addCoefficientsForEConstraint(std::shared_ptr<Face> f
 
 }
 
-void DirectionFieldSolver::addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m) {
+void DirectionFieldInitializer::addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m) {
 
     for (int i = 0; i < 4; i++) {
         std::pair<int, int> p1((f->index * 4) + i, (f->index * 4) + i);
@@ -111,7 +103,7 @@ void DirectionFieldSolver::addCoefficientsForESmooth(Face *f, Face *g, double va
     }
 }
 
-void DirectionFieldSolver::initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXd &x) {
+void DirectionFieldInitializer::initializeDirectionFieldFromABVector(Mesh &m, Eigen::VectorXd &x) {
     m.forEachTriangle([&](std::shared_ptr<Face> f) {
         std::complex<double> a(x(f->index * 4), x((f->index * 4) + 1));
         std::complex<double> b(x((f->index * 4) + 2), x((f->index * 4) + 3));
@@ -128,11 +120,11 @@ void DirectionFieldSolver::initializeDirectionFieldFromABVector(Mesh &m, Eigen::
     });
 }
 
-void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sketch) {
+void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketch &sketch) {
 
     int num_faces = mesh.getNumTriangles();
 
-    std::vector<CTriplet> coefficients;
+    std::vector<Triplet> coefficients;
 
     SparseMat A(num_faces*4, num_faces*4); // multiply faces by 4 to account for real and imaginary parts of a and b values for each face
     Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
@@ -150,15 +142,15 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
         double mult = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_C * f->area;
 
         if (sketch.checkStrokePoints(f)) {
-            for (int i = 0; i < sketch.getConstStrokePoints(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getConstStrokePoints(f)[i]->tangent_dir;
+            for (int i = 0; i < sketch.getStrokePoints(f).size(); i++) {
+                Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir;
                 addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
             }
         }
 
         if (sketch.checkStrokeLines(f)) {
-            for (int i = 0; i < sketch.getConstStrokeLines(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getConstStrokeLines(f)[i].dir;
+            for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
+                Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir;
                 addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
             }
         }
@@ -176,7 +168,7 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
 
     // turn the map into triples and put the triples into the sparse matrix
     for (auto it = sparse_map.begin(); it != sparse_map.end(); it++) {
-        coefficients.push_back(CTriplet(it->first.first, it->first.second, it->second));
+        coefficients.push_back(Triplet(it->first.first, it->first.second, it->second));
     }
     A.setFromTriplets(coefficients.begin(), coefficients.end());
 
@@ -185,6 +177,7 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
 
     //printSparseMatrix(A);
 
+    /*
     Eigen::ConjugateGradient<SparseMat> solverCG;
     auto A_transpose = SparseMat(A.transpose());
     auto A_final = SparseMat(A_transpose * A);
@@ -201,6 +194,7 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
     std::cout << solverCG.info() << std::endl;
     std::cout << "iters: " << solverCG.iterations() << std::endl;
     std::cout << "error: " << solverCG.error() << std::endl;
+    */
 
     /*
     // for checking rank
@@ -212,7 +206,6 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
     std::cout << "rank: " << solver.rank() << std::endl;
     */
 
-    // set pivot threshold??
     Eigen::SparseLU<SparseMat> solver(A);
     std::cout << solver.lastErrorMessage() << std::endl;
     solver.analyzePattern(A);
@@ -229,11 +222,7 @@ void DirectionFieldSolver::initializeDirectionField(Mesh &mesh, const Sketch &sk
     initializeDirectionFieldFromABVector(mesh, x);
 }
 
-void DirectionFieldSolver::optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch) {
-
-}
-
-void DirectionFieldSolver::printSparseMatrix(const SparseMat mat) {
+void DirectionFieldInitializer::printSparseMatrix(const SparseMat mat) {
     for (int row = 0; row < mat.rows(); row++) {
         for (int col = 0; col < mat.cols(); col++) {
             std::cout << mat.coeff(row, col) << " ";

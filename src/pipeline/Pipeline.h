@@ -6,7 +6,9 @@
 #include "Sketch.h"
 #include "Mesh.h"
 #include "src/utils/OBJWriter.h"
-#include "DirectionFieldSolver.h"
+#include "DirectionFieldInitializer.h"
+#include "DirectionFieldOptimizer.h"
+#include "HeightFieldSolver.h"
 #include <iostream>
 
 class Pipeline
@@ -29,10 +31,15 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Initializing curvature direction field..." << std::endl;
-        DirectionFieldSolver::initializeDirectionField(mesh, sketch);
+        //DirectionFieldInitializer::initializeDirectionField(mesh, sketch);
         std::cout << "DONE" << std::endl;
 
+        std::cout << "Optimizing BendField energy of curvature direction field..." << std::endl;
+        //DirectionFieldOptimizer::optimizeBendFieldEnergy(mesh, sketch);
+        std::cout << "DONE" << std::endl;
 
+        std::cout << "Optimizing height field..." << std::endl;
+        HeightFieldSolver::solveForHeightField(mesh, sketch);
 
         std::cout << "Writing result mesh to file" << std::endl;
         OBJWriter::writeOBJ(mesh, obj_file);

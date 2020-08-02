@@ -15,11 +15,11 @@ public:
             char buf[512];
             auto func1 = [&] (std::shared_ptr<Face> f) {
                 if (f->valid) {
-                    std::sprintf(buf, "v %f %f %f", f->vertices[0]->coords.x(), f->vertices[0]->coords.y(), 0.0f);
+                    std::sprintf(buf, "v %f %f %f", f->vertices[0]->coords.x(), f->vertices[0]->coords.y(), f->vertices[0]->height);
                     stream << buf << endl;
-                    std::sprintf(buf, "v %f %f %f", f->vertices[1]->coords.x(), f->vertices[1]->coords.y(), 0.0f);
+                    std::sprintf(buf, "v %f %f %f", f->vertices[1]->coords.x(), f->vertices[1]->coords.y(), f->vertices[1]->height);
                     stream << buf << endl;
-                    std::sprintf(buf, "v %f %f %f", f->vertices[2]->coords.x(), f->vertices[2]->coords.y(), 0.0f);
+                    std::sprintf(buf, "v %f %f %f", f->vertices[2]->coords.x(), f->vertices[2]->coords.y(), f->vertices[2]->height);
                     stream << buf << endl;
                 }
             };

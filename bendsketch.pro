@@ -18,15 +18,18 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
     main.cpp \
     mainwindow.cpp \
-    src/pipeline/DirectionFieldSolver.cpp \
+    src/pipeline/DirectionFieldInitializer.cpp \
+    src/pipeline/DirectionFieldOptimizer.cpp \
     src/pipeline/HeightFieldSolver.cpp \
     src/pipeline/Mesh.cpp \
     src/pipeline/Sketch.cpp \
-    src/pipeline/Triangulate.cpp
+    src/pipeline/Triangulate.cpp \
+    $$files(alglib/*.cpp, true)
 
 HEADERS += \
     mainwindow.h \
-    src/pipeline/DirectionFieldSolver.h \
+    src/pipeline/DirectionFieldInitializer.h \
+    src/pipeline/DirectionFieldOptimizer.h \
     src/pipeline/HeightFieldSolver.h \
     src/pipeline/Mesh.h \
     src/pipeline/Pipeline.h \
@@ -42,11 +45,11 @@ HEADERS += \
     autodiff/forward/forward.hpp \
     autodiff/reverse/eigen.hpp \
     autodiff/reverse/reverse.hpp \
+    $$files(alglib/*.h, true)
 
 INCLUDEPATH += /usr/local/include/eigen3 \
                /usr/local/include/CGAL \
-               /usr/local/include/boost
-
+               /usr/local/include/boost \
 
 FORMS += \
     mainwindow.ui
@@ -55,3 +58,25 @@ FORMS += \
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/release/ -lceres.1.14.0
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/debug/ -lceres.1.14.0
+else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/ -lceres.1.14.0
+
+INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
+DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/release/ -lglog.0.4.0
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/debug/ -lglog.0.4.0
+else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/ -lglog.0.4.0
+
+INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
+DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/release/ -lgflags.2.2.2
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/debug/ -lgflags.2.2.2
+else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/ -lgflags.2.2.2
+
+INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include
+DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include
