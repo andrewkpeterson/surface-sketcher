@@ -54,7 +54,7 @@ public:
 private:
     static void mark_domains(CDT& cdt, std::map<Face_handle, FaceInfo2> &m);
     static void mark_domains(CDT& ct, Face_handle start, int index, std::list<CDT::Edge>& border, std::map<Face_handle, FaceInfo2> &m);
-    static constexpr float FINENESS = 1; //1 normally, 50 for really coarse, 100 for really really coarse
+    static constexpr float FINENESS = .2; //.1 normally, 50 for really coarse, 100 for really really coarse
     static constexpr float CRITERIA_PARAM = .001; //.001 normally
 };
 

@@ -122,11 +122,11 @@ Sketch::Sketch(std::string svg_file) {
             boundary_strokes.push_back(line);
         } else if (shape->stroke.color == 0xFF0000FF) { // red convex bending line
             NSVGpath *path = shape->paths;
-            Stroke stroke = addBendingStroke(path);
+            Stroke stroke = addBendingStrokeFromSVG(path);
             convex_strokes.push_back(stroke);
         } else if (shape->stroke.color == 0xFFFF0000) { // blue concave bending line
             NSVGpath *path = shape->paths;
-            Stroke stroke = addBendingStroke(path);
+            Stroke stroke = addBendingStrokeFromSVG(path);
             concave_strokes.push_back(stroke);
         } else {
             std::cout << "Stroke type not recognized" << std::endl;
@@ -135,7 +135,7 @@ Sketch::Sketch(std::string svg_file) {
     nsvgDelete(image);
 }
 
-Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
+Sketch::Stroke Sketch::addBendingStrokeFromSVG(NSVGpath *path) {
     Stroke stroke;
     float curr_length = 0;
     bool first_point_of_segment = true;
@@ -201,6 +201,9 @@ Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
             std::cout << "stop" << std::endl;
         }
 
+        assert(!std::isnan(point->tangent_dir.x()) && !std::isnan(point->tangent_dir.y()));
+        assert(!std::isinf(point->tangent_dir.x()) && !std::isinf(point->tangent_dir.y()));
+
         segment.seg.push_back(point);
 
         if (add_segment_to_stroke || (i == path->npts - 2)) {
@@ -210,6 +213,123 @@ Sketch::Stroke Sketch::addBendingStroke(NSVGpath *path) {
         }
     }
     return stroke;
+}
+
+Sketch::Sketch(const SketchData &data) {
+    width = data.width / SKETCH_SCALE;
+    height = data.height / SKETCH_SCALE;
+    diagonal_of_bounding_box = std::sqrt(width * width + height * height);
+
+    for (int line_idx = 0; line_idx < data.boundary.size(); line_idx++) {
+        std::vector<Eigen::Vector2f> segment;
+        const std::vector<Eigen::Vector2f> &line = data.boundary[line_idx];
+        for (int i = 0; i < line.size(); i++) {
+            // add a boundary point and make sure it is not the same as the previous point
+            if (i == 0 || (i > 0 && (line[i - 1] - line[i]).norm() > 0)) {
+                segment.push_back(line[i]);
+            }
+        }
+        boundary_strokes.push_back(std::move(segment));
+    }
+
+    for (int line_idx = 0; line_idx < data.convex.size(); line_idx++) {
+        Stroke segment = addBendingStrokeFromScribble(data.convex[line_idx]);
+        convex_strokes.push_back(std::move(segment));
+    }
+
+    for (int line_idx = 0; line_idx < data.concave.size(); line_idx++) {
+        Stroke segment = addBendingStrokeFromScribble(data.concave[line_idx]);
+        concave_strokes.push_back(std::move(segment));
+    }
+}
+
+Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s) {
+    Stroke points;
+    float curr_length = 0;
+    bool first_point_of_segment = true;
+    bool add_segment_to_stroke = false;
+    float max_segment_length = getBendingStrokeSegmentLength();
+    Eigen::Vector2f last_point(0,0);
+    CurvatureStrokeSegment segment;
+    for (int i = 0; i < s.size(); i++) {
+
+        // make sure this is not a duplicate of the previous point
+        if (i > 0) {
+            if ((s[i] - s[i-1]).norm() == 0) {
+                //std::cout << "found duplicate" << std::endl;
+                continue;
+            }
+        }
+
+        std::shared_ptr<StrokePoint> point = std::make_shared<StrokePoint>();
+        point->coordinates = s[i];
+        if (!first_point_of_segment) {
+            curr_length += (s[i] - s[i-1]).norm();
+        }
+        first_point_of_segment = false;
+        if (curr_length > max_segment_length) {
+            first_point_of_segment = true;
+            curr_length = 0;
+            add_segment_to_stroke = true;
+        }
+
+        Eigen::Vector2f backward_dir(0,0);
+        float backward_dist = 1;
+        Eigen::Vector2f forward_dir(0,0);
+        float forward_dist = 1;
+        if (i == 0) {
+            forward_dir = (s[i+1] - s[i]).normalized();
+            forward_dist = (s[i+1] - s[i]).norm();
+        } else if (i == s.size() - 1) {
+            backward_dir = (s[i] - s[i-1]).normalized();
+            backward_dist = (s[i] - s[i-1]).norm();
+        } else {
+            forward_dir = (s[i+1] - s[i]).normalized();
+            forward_dist = (s[i+1] - s[i]).norm();
+            backward_dir = (s[i] - s[i-1]).normalized();
+            backward_dist = (s[i] - s[i-1]).norm();
+        }
+
+        //std::cout << backward_dir << std::endl;
+        //std::cout << backward_dist << std::endl;
+        //std::cout << forward_dir << std::endl;
+        //std::cout << forward_dist << std::endl;
+        if (backward_dist == 0 && forward_dist > 0) { point->tangent_dir = (forward_dir / forward_dist).normalized(); }
+        else if (forward_dist == 0 && backward_dist > 0) { point->tangent_dir = (backward_dir / backward_dist).normalized(); }
+        else { point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized(); }
+        //std::cout << point->tangent_dir << std::endl;
+
+        // if this statement executes, then the next point is a duplicate of the current point.
+        // We must look ahead two points to compute the tangent directions
+        if ((std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) && i < s.size() - 2 && (s[i] - s[i+2]).norm() > 0) {
+            forward_dir = (s[i+2] - s[i]).normalized();
+            forward_dist = (s[i+2] - s[i]).norm();
+            backward_dir = (s[i+2] - s[i]).normalized();
+            backward_dist = (s[i+2] - s[i]).norm();
+            point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized();
+        } else if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
+            point->tangent_dir = (backward_dir / backward_dist).normalized();
+        }
+
+        if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
+            std::cout << "stop" << std::endl;
+        }
+
+        std::cout << "x: " << point->tangent_dir.x() << " y: " << point->tangent_dir.y() << std::endl;
+
+        // need to resolve this by smoothing the stroke. Sometimes, we get something lik s[0] = (0,0), s[1] = (0,1), s[2] = (0,0), which ends up failing this assert
+        assert(point->tangent_dir.norm() > 0);
+
+        segment.seg.push_back(point);
+        if (add_segment_to_stroke || (i == s.size() - 1)) {
+            //std::cout << "size: " << segment.seg.size() << std::endl;
+            //assert(segment.seg.size() > 2);
+            points.push_back(segment);
+            add_segment_to_stroke = false;
+            segment = CurvatureStrokeSegment();
+        }
+    }
+    return points;
 }
 
 void Sketch::mapIntersectedFacesToStrokes(Mesh &mesh) {
@@ -225,8 +345,8 @@ void Sketch::mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> 
                 auto func = [&] (std::shared_ptr<Face> f) {
                     // do a distance check so that time is not wasted on far-away triangles
                     if ((f->circumcenter - point->coordinates).norm() < getTriangleAndStrokePointDistanceCheck()) {
-                        // check if the StrokePoint is inside the triangle, or if one of the two neighboring
-                        // line segments crosses the triangle.
+                        // check if the StrokePoint is inside the triangle, or if one the previous
+                        // line segment crosses the triangle.
 
                         // check if point is in triangle
                         Eigen::Vector2f v1(f->vertices[0]->coords);
@@ -253,6 +373,8 @@ void Sketch::mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> 
                                     LineIntersection intersection;
                                     intersection.points = std::make_pair(point, prev_point);
                                     intersection.dir = (point->coordinates - prev_point->coordinates).normalized();
+                                    assert(!std::isnan(intersection.dir.x()) && !std::isnan(intersection.dir.y()));
+                                    assert(!std::isinf(intersection.dir.x()) && !std::isinf(intersection.dir.y()));
                                     if (face2lines.find(f) != face2lines.end()) {
                                         face2lines[f].push_back(intersection);
                                     } else {

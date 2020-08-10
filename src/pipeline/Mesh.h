@@ -24,6 +24,7 @@ struct Face {
     bool valid = true;
 
     Eigen::Vector2f circumcenter;
+    Eigen::Vector2f centroid;
     float area;
 
     std::vector<Face*> neighbors; // use raw pointers to neighbors to avoid shared ptr cycles
@@ -35,7 +36,6 @@ struct Face {
     float lambda_v = 0;
 
     Eigen::Vector3f normal() {
-
         return (vertices[0]->coords3d() - vertices[1]->coords3d()).cross(vertices[0]->coords3d() - vertices[2]->coords3d()).normalized();
     }
 };
@@ -49,9 +49,9 @@ public:
     void forEachPairOfNeighboringTriangles(const std::function<void(Face*, Face*)> &func);
     void forEachVertex(const std::function<void(std::shared_ptr<Vertex>)> &func);
 
-    void forEachConstTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
-    void forEachConstPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const;
-    void forEachConstVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
+    void forEachTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
+    void forEachPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const;
+    void forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
 
     static float calcEFGArea(const Face *f, const Face *g);
     int getNumTriangles() const { return m_num_triangles; }

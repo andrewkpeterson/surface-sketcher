@@ -3,7 +3,9 @@
 #include "Mesh.h"
 #include "Sketch.h"
 
-
+// Both of these "mark domains" methods are helpers that allow us to create a triangulation defined by the
+// boundary curves, rather than the convex hull of the points defining the boundary curves. The code for the "mark domains"
+// methods is from https://doc.cgal.org/latest/Triangulation_2/Triangulation_2_2polygon_triangulation_8cpp-example.html
 void Triangulate::mark_domains(CDT &ct, Face_handle start, int index, std::list<CDT::Edge> &border, std::map<Face_handle, FaceInfo2> &m)
 {
   if(m[start].nesting_level != -1){
@@ -28,6 +30,7 @@ void Triangulate::mark_domains(CDT &ct, Face_handle start, int index, std::list<
   }
 }
 
+//from https://doc.cgal.org/latest/Triangulation_2/Triangulation_2_2polygon_triangulation_8cpp-example.html, as explained above
 void Triangulate::mark_domains(CDT &cdt, std::map<Face_handle, FaceInfo2> &m)
 {
   for(CDT::Face_handle f : cdt.all_face_handles()){
@@ -69,6 +72,8 @@ void removeFace(CDT &cdt, std::map<Face_handle, FaceInfo2> &domain_info, Face_ha
     if (!cdt.is_infinite(f->neighbor(2)) && domain_info[f->neighbor(2)].in_domain()) { checkFace(cdt, domain_info, f->neighbor(2)); }
 }
 
+// remove artifacts in the triangulation along the border by recursively removing any faces with less
+// than 2 neighbors and removing any faces with very small area
 void removeArtifacts(CDT &cdt, std::map<Face_handle, FaceInfo2> &domain_info) {
     for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
         checkFace(cdt, domain_info, it);

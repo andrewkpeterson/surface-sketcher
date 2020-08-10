@@ -4,6 +4,7 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <set>
+#include "ScribbleArea.h"
 #include "Triangulate.h"
 
 struct NSVGpath;
@@ -14,6 +15,7 @@ class Sketch
 {
 public:
     Sketch(std::string svg_file);
+    Sketch(const SketchData &data);
 
 
     struct StrokePoint {
@@ -46,7 +48,8 @@ public:
         return boundary_strokes;
     }
 
-    Stroke addBendingStroke(NSVGpath *path);
+    Stroke addBendingStrokeFromSVG(NSVGpath *path);
+    Stroke addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s);
     float getBendingStrokeSegmentLength() { return diagonal_of_bounding_box / 30.0f; }
     float getTriangleAndStrokePointDistanceCheck() const { return diagonal_of_bounding_box / 10.0f; }
     void mapIntersectedFacesToStrokes(Mesh &mesh);
@@ -58,6 +61,8 @@ public:
     std::vector<Stroke>& getConcaveStrokes() { return concave_strokes; }
     static int getLengthOfStrokeInPoints(const Stroke &stroke);
     static std::shared_ptr<StrokePoint> getStrokePointByFlattenedIndex(const Stroke &stroke, int idx);
+
+    static constexpr double SKETCH_SCALE = 100.0; // factor by which the sketch is scaled down
 
 private:
     std::vector<std::vector<Eigen::Vector2f>> boundary_strokes;

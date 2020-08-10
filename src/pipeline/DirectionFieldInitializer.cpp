@@ -8,7 +8,13 @@
 
 void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Face> f, double mult, Eigen::Vector2f dir,
                                                          std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
-    std::complex<double> u(dir.x(), dir.y());
+
+    // here, we are encouraging the a and b variables of the face f to have values such that
+    // the direction u is one of the roots of the polynomial that the coefficients a and b define
+
+    // this will encourage the direction u to be one of the four directions in the resulting
+    // direction field
+    std::complex<double> u(dir.x(), dir.y()); // dir is a unit vector
     std::complex<double> u2 = std::pow(u, 2.0);
     std::complex<double> u4 = std::pow(u, 4.0);
     double cR = u2.real();
@@ -34,7 +40,7 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
     }
 
     {
-        double val1 = mult * (cR * cR - cI * cI);
+        double val1 = mult * (cR * cR + cI * cI);
         std::pair<int, int> p1((f->index * 4) + 1, (f->index * 4) + 1);
         addToSparseMap(p1, val1, m);
 
@@ -80,7 +86,7 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
         std::pair<int, int> p3((f->index * 4) + 3, (f->index * 4) + 3);
         addToSparseMap(p3, val3, m);
 
-        double val4 = mult * dR;
+        double val4 = mult * dI;
         b((f->index * 4) + 3) = val4;
     }
 
@@ -88,6 +94,9 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
 
 void DirectionFieldInitializer::addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m) {
 
+    // here, we are punishing differences in the polyvector representations of neighboring triangles f and g.
+    // it makes sense that punishing differences of the polyvector representations of neighboring triangles results
+    // in a smoother direction field.
     for (int i = 0; i < 4; i++) {
         std::pair<int, int> p1((f->index * 4) + i, (f->index * 4) + i);
         addToSparseMap(p1, val, m);
@@ -109,8 +118,17 @@ void DirectionFieldInitializer::initializeDirectionFieldFromABVector(Mesh &m, Ei
         std::complex<double> b(x((f->index * 4) + 2), x((f->index * 4) + 3));
 
         std::complex<double> z = 1.0 / 2.0 * (a + std::sqrt(a * a - 4.0 * b));
-        std::complex<double> u_complex = std::sqrt(z); // does it matter if the positive or negative square root is taken?
-        std::complex<double> v_complex = std::sqrt(b / z);
+
+        // it should not matter whether the positive or negative square root is taken,
+        // because the positive and negative square roots are complex numbers related
+        // by a rotation by pi radians, both of which are the directions we want in the
+        // 4 direction field
+        std::complex<double> u_complex = std::sqrt(z);
+        std::complex<double> v_complex = std::sqrt(b / z); // we can also solve by v by taking sqrt(a - z), and we will get the same thing
+        std::complex<double> u_complex_normalized = u_complex / (std::sqrt(u_complex.real() * u_complex.real() + u_complex.imag() * u_complex.imag()));
+        std::complex<double> v_complex_normalized = v_complex / (std::sqrt(v_complex.real() * v_complex.real() + v_complex.imag() * v_complex.imag()));
+        std::cout << (std::pow(u_complex_normalized, 4.0) - std::pow(u_complex_normalized, 2.0) * a + b) << std::endl;
+        std::cout << (std::pow(v_complex_normalized, 4.0) - std::pow(v_complex_normalized, 2.0) * a + b) << std::endl;
 
         Eigen::Vector2f u(u_complex.real(), u_complex.imag());
         Eigen::Vector2f v(v_complex.real(), v_complex.imag());
@@ -133,7 +151,7 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     // add coefficients for E_smooth
     mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);
-        double val = (1.0 / mesh.getTotalArea()) * 2 * efg;
+        double val = (1.0 / mesh.getTotalArea()) * 2 * efg * OMEGA_S;
         addCoefficientsForESmooth(f, g, val, sparse_map);
     });
 
@@ -147,7 +165,6 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
                 addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
             }
         }
-
         if (sketch.checkStrokeLines(f)) {
             for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
                 Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir;
@@ -156,8 +173,9 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
         }
     });
 
-
     // add coefficients for E_ortho
+    // punishing the magnitude of a in the polyvector representation will encourage u and v to be
+    // orthogonal. OMEGA_O is small, so using this energy only lightly pushes towards orthogonality.
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
         double val = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_O * f->area;
         std::pair<int, int> p1(f->index * 4, f->index * 4);
@@ -207,16 +225,16 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     */
 
     Eigen::SparseLU<SparseMat> solver(A);
-    std::cout << solver.lastErrorMessage() << std::endl;
+    //std::cout << solver.lastErrorMessage() << std::endl;
     solver.analyzePattern(A);
-    std::cout << solver.lastErrorMessage() << std::endl;
+    //std::cout << solver.lastErrorMessage() << std::endl;
     solver.factorize(A);
-    std::cout << "Determinant of matrix: " << solver.determinant() << std::endl;
-    std::cout << "Log of determinant of of matrix: " << solver.logAbsDeterminant() << std::endl;
-    std::cout << solver.lastErrorMessage() << std::endl;
-    Eigen::VectorXd x = solver.solve(-b);
-    std::cout << solver.info() << std::endl;
-    std::cout << solver.lastErrorMessage() << std::endl;
+    //std::cout << "Determinant of matrix: " << solver.determinant() << std::endl;
+    //std::cout << "Log of determinant of of matrix: " << solver.logAbsDeterminant() << std::endl;
+    //std::cout << solver.lastErrorMessage() << std::endl;
+    Eigen::VectorXd x = solver.solve(-b); // this is -b rather than b because the solver solves Ax = b, but b was set up to solve Ax + b = 0
+    //std::cout << solver.info() << std::endl;
+    //std::cout << solver.lastErrorMessage() << std::endl;
 
     // use the solution to initialize u and v for each face
     initializeDirectionFieldFromABVector(mesh, x);

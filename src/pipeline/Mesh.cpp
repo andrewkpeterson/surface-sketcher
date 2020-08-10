@@ -39,6 +39,9 @@ float Mesh::calcEFGArea(const Face *f, const Face *g) {
     return calcTriangleArea(v1->coords, v2->coords, f_centroid) + calcTriangleArea(v1->coords, v2->coords, g_centroid);
 }
 
+// This method uses the CGAL cdt data structure and turns it into a data structure that is
+// easier to work with and has face data structures that store some useful information that
+// the CGAL cdt does not have, such as an index for each face.
 void Mesh::init(std::map<Face_handle, bool> &info) {
     int next_face_index = 0;
     int next_vertex_index = 0;
@@ -56,6 +59,8 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
             index2face[next_face_index] = f;
             f->index = next_face_index;
             f->circumcenter = calculateCircumcenter(it);
+            f->centroid = Eigen::Vector2f((it->vertex(0)->point().x() + it->vertex(1)->point().x() + it->vertex(2)->point().x()) / 3.0f,
+                                          (it->vertex(0)->point().y() + it->vertex(1)->point().y() + it->vertex(2)->point().y()) / 3.0f);
             f->area = calcTriangleArea(it);
             total_area += f->area;
             visited_faces[it] = f;
@@ -100,7 +105,7 @@ void Mesh::forEachTriangle(const std::function<void(std::shared_ptr<Face>)> &fun
     }
 }
 
-void Mesh::forEachConstTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const {
+void Mesh::forEachTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const {
     for (auto it = index2face.begin(); it != index2face.end(); it++) {
         func(it->second);
     }
@@ -118,7 +123,7 @@ void Mesh::forEachPairOfNeighboringTriangles(const std::function<void(Face*, Fac
     }
 }
 
-void Mesh::forEachConstPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const {
+void Mesh::forEachPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const {
     std::unordered_set<Face*> visited_faces;
     for (auto it = index2face.begin(); it != index2face.end(); it++) {
         for (int i = 0; i < it->second->neighbors.size(); i++) {
@@ -136,7 +141,7 @@ void Mesh::forEachVertex(const std::function<void(std::shared_ptr<Vertex>)> &fun
     }
 }
 
-void Mesh::forEachConstVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const {
+void Mesh::forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const {
     for (auto it = index2vertex.begin(); it != index2vertex.end(); it++) {
         func(it->second);
     }

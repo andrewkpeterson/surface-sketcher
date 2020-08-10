@@ -9,7 +9,7 @@ class HeightFieldSolver
 public:
     static void solveForHeightField(Mesh &mesh, Sketch &sketch);
 
-    static constexpr float PRINCIPLE_CURVATURE_MU = 2e-5;
+    static constexpr float PRINCIPLE_CURVATURE_MU = 0;
 private:
     static void initializeCurvatureValues(Sketch &sketch);
     static void estimateCurvatureValues(Mesh &mesh, Sketch &sketch);

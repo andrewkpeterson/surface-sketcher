@@ -7,14 +7,13 @@
 
 void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
 
-    /*
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
-        f->vertices[0]->height = .01 * f->vertices[0]->coords.x() * f->vertices[0]->coords.y();
-        f->vertices[1]->height = .01 * f->vertices[1]->coords.x() * f->vertices[1]->coords.y();
-        f->vertices[2]->height = .01 * f->vertices[2]->coords.x() * f->vertices[2]->coords.y();
+        f->vertices[0]->height = std::sin(f->vertices[0]->coords.y() * 2);
+        f->vertices[1]->height = std::sin(f->vertices[1]->coords.y() * 2);
+        f->vertices[2]->height = std::sin(f->vertices[2]->coords.y() * 2);
     });
-    */
     estimateCurvatureValues(mesh, sketch);
+
     /*
     for (int i = 0; i < NUM_ITERATIONS; i++) {
         if (i == 0) {
@@ -22,7 +21,6 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
         } else {
             estimateCurvatureValues(mesh, sketch);
         }
-        estimateCurvatureValues(mesh, sketch);
         minimizeELambda(mesh, sketch);
         minimizeEMatch(mesh, sketch);
     }
@@ -80,6 +78,7 @@ struct F2 {
   template <typename T>
   bool operator()(const T* const r, T* residual) const {
     residual[0] = T(std::sqrt(HeightFieldSolver::PRINCIPLE_CURVATURE_MU)) * r[0];
+    //residual[0] = T(HeightFieldSolver::PRINCIPLE_CURVATURE_MU) * r[0];
     return true;
   }
 };
@@ -103,6 +102,13 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
                 Eigen::Vector3f projected_point = segment[p_idx]->coords3d() - (segment[p_idx]->coords3d() - origin).dot(plane_normal) * plane_normal;
                 Eigen::Vector2f point_on_plane = Eigen::Vector2f((projected_point - origin).dot(n), (projected_point - origin).dot(other_basis));
                 points.push_back(point_on_plane);
+                /*
+                std::cout << "coords: " << segment[p_idx]->coords3d().x() << " " << segment[p_idx]->coords3d().y() << " " << segment[p_idx]->coords3d().z() << std::endl;
+                std::cout << "projected point: " << point_on_plane.x() << " " << point_on_plane.y() << std::endl;
+                std::cout << "plane_normal:" << plane_normal.x() << " " << plane_normal.y() << " " << plane_normal.z() << std::endl;
+                std::cout << "n:" << n.x() << " " << n.y() << " " << n.z() << std::endl;
+                std::cout << "t:" << t.x() << " " << t.y() << " " << t.z() << std::endl;
+                */
             }
 
             using ceres::AutoDiffCostFunction;
@@ -111,9 +117,9 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             using ceres::Solve;
             using ceres::Solver;
 
-            double r = 1.0;
-            double c1 = -.1;
-            double c2 = -.1;
+            double r = 10.0;
+            double c1 = convex ? -.1 : .1; // set the center of the circle according to
+            double c2 = convex ? -.1 : .1;
 
             Problem problem;
 
@@ -126,7 +132,7 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
 
             Solver::Options options;
             options.max_num_iterations = 200;
-            options.function_tolerance = .000000001;
+            options.function_tolerance = .000001;
             //options.minimizer_progress_to_stdout = true;
             Solver::Summary summary;
             Solve(options, &problem, &summary);
@@ -138,6 +144,7 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
                 segment[i]->curvature_value = convex ? (1.0 / r) : -(1.0 / r);
             }
             std::cout << "******************** " << strokes[stroke_idx][seg_idx].curvature_value << " *********************" << std::endl;
+            std::cout << "radius: "<< r << std::endl;
         }
     }
 }
