@@ -36,7 +36,10 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
         addToSparseMap(p3, val3, m);
 
         double val4 = -mult * (dR * cR + dI * cI);
-        b(f->index * 4) = val4;
+
+        // it is important that we add to the entry of b, rather than just assign to it, otherwise, the
+        // constraints will not work correctly
+        b(f->index * 4) += val4;
     }
 
     {
@@ -53,7 +56,7 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
         addToSparseMap(p3, val3, m);
 
         double val4 = mult * (cI * dR - cR * dI);
-        b((f->index * 4) + 1) = val4;
+        b((f->index * 4) + 1) += val4;
     }
 
     {
@@ -70,7 +73,7 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
         addToSparseMap(p3, val3, m);
 
         double val4 = mult * dR;
-        b((f->index * 4) + 2) = val4;
+        b((f->index * 4) + 2) += val4;
     }
 
     {
@@ -87,7 +90,7 @@ void DirectionFieldInitializer::addCoefficientsForEConstraint(std::shared_ptr<Fa
         addToSparseMap(p3, val3, m);
 
         double val4 = mult * dI;
-        b((f->index * 4) + 3) = val4;
+        b((f->index * 4) + 3) += val4;
     }
 
 }
@@ -127,8 +130,8 @@ void DirectionFieldInitializer::initializeDirectionFieldFromABVector(Mesh &m, Ei
         std::complex<double> v_complex = std::sqrt(b / z); // we can also solve by v by taking sqrt(a - z), and we will get the same thing
         std::complex<double> u_complex_normalized = u_complex / (std::sqrt(u_complex.real() * u_complex.real() + u_complex.imag() * u_complex.imag()));
         std::complex<double> v_complex_normalized = v_complex / (std::sqrt(v_complex.real() * v_complex.real() + v_complex.imag() * v_complex.imag()));
-        std::cout << (std::pow(u_complex_normalized, 4.0) - std::pow(u_complex_normalized, 2.0) * a + b) << std::endl;
-        std::cout << (std::pow(v_complex_normalized, 4.0) - std::pow(v_complex_normalized, 2.0) * a + b) << std::endl;
+        std::cout << (std::pow(u_complex, 4.0) - std::pow(u_complex, 2.0) * a + b) << std::endl;
+        std::cout << (std::pow(v_complex, 4.0) - std::pow(v_complex, 2.0) * a + b) << std::endl;
 
         Eigen::Vector2f u(u_complex.real(), u_complex.imag());
         Eigen::Vector2f v(v_complex.real(), v_complex.imag());
@@ -147,12 +150,13 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     SparseMat A(num_faces*4, num_faces*4); // multiply faces by 4 to account for real and imaginary parts of a and b values for each face
     Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
     std::map<std::pair<int,int>, double> sparse_map;
-
+    int count = 0;
     // add coefficients for E_smooth
     mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);
         double val = (1.0 / mesh.getTotalArea()) * 2 * efg * OMEGA_S;
         addCoefficientsForESmooth(f, g, val, sparse_map);
+        count++;
     });
 
     // add coefficients for E_constraint

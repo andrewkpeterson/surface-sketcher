@@ -36,7 +36,7 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     //std::cout << "Determinant of matrix: " << Usolver.determinant() << std::endl;
     //std::cout << "Log of determinant of of matrix: " << Usolver.logAbsDeterminant() << std::endl;
     //std::cout << Usolver.lastErrorMessage() << std::endl;
-    Eigen::VectorXd xu = Usolver.solve(-bu);
+    Eigen::VectorXd xu = Usolver.solve(-bu); // this is -bu rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
     //std::cout << Usolver.info() << std::endl;
     //std::cout << Usolver.lastErrorMessage() << std::endl;
 
@@ -64,7 +64,7 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     //std::cout << "Determinant of matrix: " << Vsolver.determinant() << std::endl;
     //std::cout << "Log of determinant of of matrix: " << Vsolver.logAbsDeterminant() << std::endl;
     //std::cout << Vsolver.lastErrorMessage() << std::endl;
-    Eigen::VectorXd xv = Vsolver.solve(-bv);
+    Eigen::VectorXd xv = Vsolver.solve(-bv); // this is -bv rather than bv because the solver solves Ax = bv, but b was set up to solve Ax + bv = 0
     //std::cout << Vsolver.info() << std::endl;
     //std::cout << Vsolver.lastErrorMessage() << std::endl;
 
@@ -100,7 +100,9 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraints(Mesh &mesh, co
 void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &mesh, const Sketch &sketch, bool coefficientsForV,
                                                                         std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b,
                                                                         std::shared_ptr<Face> f, const Eigen::Vector2f d) {
-    // figure out if this constraint is supposed to be for u or for v
+    // We need to figure out if this constraint is supposed to be for u or for v.
+    // The constraint is supposed to be for u if f->u or -f->u is closer to the
+    // constraint than both of f->v and -f->v.
     Eigen::Vector2f best_u = (f->u.normalized().dot(d)) > (-f->u.normalized().dot(d)) ? f->u.normalized() : -f->u.normalized();
     Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
     //std::cout << (coefficientsForV && (best_v - d).norm() < (best_u - d).norm()) << " " << (!coefficientsForV && (best_u - d).norm() < (best_v - d).norm()) << std::endl;
@@ -108,16 +110,16 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
                           (!coefficientsForV && (best_u.dot(d) > best_v.dot(d)));
 
     if (use_constraint) {
-        int sign = (coefficientsForV && best_v == -f->v) || (!coefficientsForV && best_u == -f->u) ? 1 : -1;
+        int sign = ((coefficientsForV && best_v == -f->v) || (!coefficientsForV && best_u == -f->u)) ? 1 : -1;
         //std::cout << sign << std::endl;
         float mult = f->area / mesh.getTotalArea();
         std::pair<int, int> x_idx(2*f->index, 2*f->index);
         addToSparseMap(x_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index) = sign * mult * STROKE_CONSTRAINT_WEIGHT * d.x(); // need to take negative of this?
+        b(2*f->index) += sign * mult * STROKE_CONSTRAINT_WEIGHT * d.x(); // make sure the sign here is correct!!!! ******************************************
 
         std::pair<int, int> y_idx(2*f->index + 1, 2*f->index + 1);
         addToSparseMap(y_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index + 1) = sign * mult * STROKE_CONSTRAINT_WEIGHT * d.y(); // need to take negative of this?
+        b(2*f->index + 1) += sign * mult * STROKE_CONSTRAINT_WEIGHT * d.y();
     }
 }
 
