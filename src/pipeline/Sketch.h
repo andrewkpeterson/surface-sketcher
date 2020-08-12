@@ -30,8 +30,12 @@ public:
     struct CurvatureStrokeSegment {
         // a segment begins at the terminal point of the previous segment and terminates at its last point.
         // The exception to this is the first segment in a stroke, which begins at its own first point.
+        enum class DirectionField {
+            U,V
+        };
         std::vector<std::shared_ptr<StrokePoint>> seg;
         float curvature_value;
+        DirectionField directionField;
     };
 
     struct LineIntersection {
@@ -40,6 +44,7 @@ public:
     };
 
     using Stroke = std::vector<CurvatureStrokeSegment>;
+
     int width;
     int height;
     int diagonal_of_bounding_box;
@@ -74,7 +79,6 @@ private:
 
     void mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> &strokes);
 
-    static constexpr float SMOOTH_DIRECTION = .001;
     static constexpr int SVG_SIZE_PARAM = 10;
 };
 

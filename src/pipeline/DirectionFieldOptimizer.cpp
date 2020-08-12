@@ -2,9 +2,39 @@
 #include "Mesh.h"
 #include "Sketch.h"
 
-void DirectionFieldOptimizer::optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch) {
+void DirectionFieldOptimizer::optimizeBendFieldEnergy(Mesh &mesh, Sketch &sketch) {
+    assignDirectionFieldToConstraints(mesh, sketch);
     for (int i = 0; i < NUM_ITERATIONS; i++) {
         runIterationOfBendFieldEnergyOptimization(mesh, sketch);
+    }
+}
+
+void DirectionFieldOptimizer::assignDirectionFieldToConstraints(Mesh &mesh, Sketch &sketch) {
+    auto &concave_strokes = sketch.getConcaveStrokes();
+    auto &convex_strokes = sketch.getConvexStrokes();
+
+    for (int stroke_idx = 0; stroke_idx < concave_strokes.size(); stroke_idx++) {
+        assignDirectionFieldToConstraintsHelper(mesh, sketch, concave_strokes[stroke_idx]);
+    }
+
+    for (int stroke_idx = 0; stroke_idx < convex_strokes.size(); stroke_idx++) {
+        assignDirectionFieldToConstraintsHelper(mesh, sketch, convex_strokes[stroke_idx]);
+    }
+}
+
+void DirectionFieldOptimizer::assignDirectionFieldToConstraintsHelper(Mesh &mesh, Sketch &sketch, std::vector<Sketch::CurvatureStrokeSegment> &stroke) {
+    int v_count = 0;
+    int u_count = 0;
+    for (int seg_idx = 0; seg_idx < stroke.size(); seg_idx++) {
+        auto &seg = stroke[seg_idx];
+        for (int i = 0; i < seg.seg.size(); i++) {
+            Eigen::Vector2f d = seg.seg[i]->coordinates;
+            auto f = seg.seg[i]->triangle;
+            Eigen::Vector2f best_u = (f->u.normalized().dot(d)) > (-f->u.normalized().dot(d)) ? f->u.normalized() : -f->u.normalized();
+            Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
+            if (best_u.dot(d) > best_v.dot(d)) { u_count++; }
+            else { v_count++; }
+        }
     }
 }
 
@@ -29,13 +59,8 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     // solve for u vectors
     Au.makeCompressed();
     Eigen::SparseLU<SparseMat> Usolver(Au);
-    //std::cout << Usolver.lastErrorMessage() << std::endl;
     Usolver.analyzePattern(Au);
-    //std::cout << Usolver.lastErrorMessage() << std::endl;
     Usolver.factorize(Au);
-    //std::cout << "Determinant of matrix: " << Usolver.determinant() << std::endl;
-    //std::cout << "Log of determinant of of matrix: " << Usolver.logAbsDeterminant() << std::endl;
-    //std::cout << Usolver.lastErrorMessage() << std::endl;
     Eigen::VectorXd xu = Usolver.solve(-bu); // this is -bu rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
     //std::cout << Usolver.info() << std::endl;
     //std::cout << Usolver.lastErrorMessage() << std::endl;
@@ -57,13 +82,8 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     // solve for v vectors
     Av.makeCompressed();
     Eigen::SparseLU<SparseMat> Vsolver(Av);
-    //std::cout << Vsolver.lastErrorMessage() << std::endl;
     Vsolver.analyzePattern(Av);
-    //std::cout << Vsolver.lastErrorMessage() << std::endl;
     Vsolver.factorize(Av);
-    //std::cout << "Determinant of matrix: " << Vsolver.determinant() << std::endl;
-    //std::cout << "Log of determinant of of matrix: " << Vsolver.logAbsDeterminant() << std::endl;
-    //std::cout << Vsolver.lastErrorMessage() << std::endl;
     Eigen::VectorXd xv = Vsolver.solve(-bv); // this is -bv rather than bv because the solver solves Ax = bv, but b was set up to solve Ax + bv = 0
     //std::cout << Vsolver.info() << std::endl;
     //std::cout << Vsolver.lastErrorMessage() << std::endl;
@@ -105,21 +125,23 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
     // constraint than both of f->v and -f->v.
     Eigen::Vector2f best_u = (f->u.normalized().dot(d)) > (-f->u.normalized().dot(d)) ? f->u.normalized() : -f->u.normalized();
     Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
-    //std::cout << (coefficientsForV && (best_v - d).norm() < (best_u - d).norm()) << " " << (!coefficientsForV && (best_u - d).norm() < (best_v - d).norm()) << std::endl;
     bool use_constraint = (coefficientsForV && (best_v.dot(d) > best_u.dot(d))) ||
                           (!coefficientsForV && (best_u.dot(d) > best_v.dot(d)));
 
     if (use_constraint) {
-        int sign = ((coefficientsForV && best_v == -f->v) || (!coefficientsForV && best_u == -f->u)) ? 1 : -1;
-        //std::cout << sign << std::endl;
+        // Here, we are creating an equation of the form Ax + b = 0. Note that the Eigen solver actually solves Wx = z, so
+        // we pass -b into the solver. The modified constraint is the constraint or the negative of the constraint,
+        // whichever is closer to the vector being constrained. To create the equation of the form Ax + b, we want to add
+        // the negative of the modified constraint to b at the correct indices.
+        Eigen::Vector2f modified_constraint = ((coefficientsForV && f->v.dot(d) > 0) || (!coefficientsForV && f->u.dot(d) > 0)) ? d : -d;
         float mult = f->area / mesh.getTotalArea();
         std::pair<int, int> x_idx(2*f->index, 2*f->index);
         addToSparseMap(x_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index) += sign * mult * STROKE_CONSTRAINT_WEIGHT * d.x(); // make sure the sign here is correct!!!! ******************************************
+        b(2*f->index) += -mult * STROKE_CONSTRAINT_WEIGHT * modified_constraint.x();
 
         std::pair<int, int> y_idx(2*f->index + 1, 2*f->index + 1);
         addToSparseMap(y_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index + 1) += sign * mult * STROKE_CONSTRAINT_WEIGHT * d.y();
+        b(2*f->index + 1) += -mult * STROKE_CONSTRAINT_WEIGHT * modified_constraint.y();
     }
 }
 
@@ -133,15 +155,15 @@ void DirectionFieldOptimizer::addCoefficientsForBendFieldEnergy(Mesh &mesh, cons
             A(1,i) = p.y() - f->neighbors[i]->circumcenter.y();
         }
 
-        Eigen::Vector2f w = coefficientsForV ? f->u : f->v; // ******************************* Is this right?
+        // If we are optimizing the v direction field, we multiply the jacobian of v with
+        // the u of the same face and then take the norm to get the bendfield energy
+        Eigen::Vector2f w = coefficientsForV ? f->u : f->v;
         Eigen::MatrixXd A_pinv = A.completeOrthogonalDecomposition().pseudoInverse();
 
         float k = w.x() * (A_pinv(0,0) + A_pinv(1,0) + A_pinv(2,0)) + w.y() * (A_pinv(0,1) + A_pinv(1,1) + A_pinv(2,1));
         float k1 = -(w.x() * A_pinv(0,0) + w.y() * A_pinv(0,1));
         float k2 = -(w.x() * A_pinv(1,0) + w.y() * A_pinv(1,1));
         float k3 = -(w.x() * A_pinv(2,0) + w.y() * A_pinv(2,1));
-
-        //std::cout << "x: "<<  w.x() << " " << "y: "<<  w.y() << std::endl;
 
         assert((k1 == 0 && f->neighbors.size() < 1) || f->neighbors.size() >= 1);
         assert((k2 == 0 && f->neighbors.size() < 2) || f->neighbors.size() >= 2);

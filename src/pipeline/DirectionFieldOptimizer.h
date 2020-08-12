@@ -2,14 +2,17 @@
 #define DIRECTIONFIELDOPTIMIZER_H
 
 #include "DirectionFieldInitializer.h"
+#include "Sketch.h"
 #include <iostream>
 
 class DirectionFieldOptimizer
 {
 public:
-    static void optimizeBendFieldEnergy(Mesh &mesh, const Sketch &sketch);
+    static void optimizeBendFieldEnergy(Mesh &mesh, Sketch &sketch);
 
 private:
+    static void assignDirectionFieldToConstraints(Mesh &mesh, Sketch &sketch);
+    static void assignDirectionFieldToConstraintsHelper(Mesh &mesh, Sketch &sketch, std::vector<Sketch::CurvatureStrokeSegment> &stroke);
     static void runIterationOfBendFieldEnergyOptimization(Mesh &mesh, const Sketch &sketch);
     static void addCoefficientsForStrokeConstraints(Mesh &mesh, const Sketch &sketch, bool coefficientsForV,
                                                     std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
@@ -42,7 +45,7 @@ private:
         }
     }
 
-    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 1;
+    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 1e2;
     static constexpr const int NUM_ITERATIONS = 5;
 };
 

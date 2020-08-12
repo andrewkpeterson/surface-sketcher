@@ -31,7 +31,7 @@ private:
         }
     }
 
-    static constexpr const double OMEGA_S = 10;
+    static constexpr const double OMEGA_S = 1;
     static constexpr const double OMEGA_C = 1e3; // 1e3
     static constexpr const double OMEGA_O = 1e-5; //1e-5
 };

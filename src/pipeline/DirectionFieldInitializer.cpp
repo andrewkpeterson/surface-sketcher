@@ -128,10 +128,6 @@ void DirectionFieldInitializer::initializeDirectionFieldFromABVector(Mesh &m, Ei
         // 4 direction field
         std::complex<double> u_complex = std::sqrt(z);
         std::complex<double> v_complex = std::sqrt(b / z); // we can also solve by v by taking sqrt(a - z), and we will get the same thing
-        std::complex<double> u_complex_normalized = u_complex / (std::sqrt(u_complex.real() * u_complex.real() + u_complex.imag() * u_complex.imag()));
-        std::complex<double> v_complex_normalized = v_complex / (std::sqrt(v_complex.real() * v_complex.real() + v_complex.imag() * v_complex.imag()));
-        std::cout << (std::pow(u_complex, 4.0) - std::pow(u_complex, 2.0) * a + b) << std::endl;
-        std::cout << (std::pow(v_complex, 4.0) - std::pow(v_complex, 2.0) * a + b) << std::endl;
 
         Eigen::Vector2f u(u_complex.real(), u_complex.imag());
         Eigen::Vector2f v(v_complex.real(), v_complex.imag());
@@ -150,13 +146,11 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     SparseMat A(num_faces*4, num_faces*4); // multiply faces by 4 to account for real and imaginary parts of a and b values for each face
     Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
     std::map<std::pair<int,int>, double> sparse_map;
-    int count = 0;
     // add coefficients for E_smooth
     mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);
         double val = (1.0 / mesh.getTotalArea()) * 2 * efg * OMEGA_S;
         addCoefficientsForESmooth(f, g, val, sparse_map);
-        count++;
     });
 
     // add coefficients for E_constraint
@@ -197,45 +191,9 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     // solve the system of linear equations
     A.makeCompressed();
 
-    //printSparseMatrix(A);
-
-    /*
-    Eigen::ConjugateGradient<SparseMat> solverCG;
-    auto A_transpose = SparseMat(A.transpose());
-    auto A_final = SparseMat(A_transpose * A);
-    A_final.makeCompressed();
-    auto b_final = Eigen::VectorXd(A_transpose * -b);
-    solverCG.analyzePattern(A_final);
-    std::cout << solverCG.info() << std::endl;
-    solverCG.compute(A_final);
-    std::cout << solverCG.info() << std::endl;
-    //solverCG.setTolerance(.000001);
-    solverCG.setMaxIterations(100000);
-    Eigen::VectorXd xCG = solverCG.solve(b_final);
-    //Eigen::VectorXd x = solver.solveWithGuess(b_final, Eigen::VectorXcd::Ones(num_faces*2));
-    std::cout << solverCG.info() << std::endl;
-    std::cout << "iters: " << solverCG.iterations() << std::endl;
-    std::cout << "error: " << solverCG.error() << std::endl;
-    */
-
-    /*
-    // for checking rank
-    Eigen::SparseQR<SparseMat, Eigen::COLAMDOrdering<int>> solver;
-    solver.compute(A);
-    std::cout << solver.lastErrorMessage() << std::endl;
-    std::cout << solver.info() << std::endl;
-    std::cout << "size: " << A.cols() << std::endl;
-    std::cout << "rank: " << solver.rank() << std::endl;
-    */
-
     Eigen::SparseLU<SparseMat> solver(A);
-    //std::cout << solver.lastErrorMessage() << std::endl;
     solver.analyzePattern(A);
-    //std::cout << solver.lastErrorMessage() << std::endl;
     solver.factorize(A);
-    //std::cout << "Determinant of matrix: " << solver.determinant() << std::endl;
-    //std::cout << "Log of determinant of of matrix: " << solver.logAbsDeterminant() << std::endl;
-    //std::cout << solver.lastErrorMessage() << std::endl;
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than b because the solver solves Ax = b, but b was set up to solve Ax + b = 0
     //std::cout << solver.info() << std::endl;
     //std::cout << solver.lastErrorMessage() << std::endl;
