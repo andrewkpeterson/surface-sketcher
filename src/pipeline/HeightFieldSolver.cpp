@@ -38,27 +38,24 @@ void HeightFieldSolver::initializeCurvatureValues(Sketch &sketch) {
     // (i.e. "Valleys") have positive normal curvature because the unit tangent vector pulls into the
     // SAME direction as the surface normal.
     for (int stroke_idx = 0; stroke_idx < concave_strokes.size(); stroke_idx++) {
-        for (int seg_idx = 0; seg_idx < concave_strokes[stroke_idx].size(); seg_idx++) {
-            concave_strokes[stroke_idx][seg_idx].curvature_value = INITIAL_CURVATURE_MAGNITUDE;
-            for (int i = 0; i < concave_strokes[stroke_idx][seg_idx].seg.size(); i++) {
-                concave_strokes[stroke_idx][seg_idx].seg[i]->curvature_value = INITIAL_CURVATURE_MAGNITUDE;
-            }
+        auto &stroke = concave_strokes[stroke_idx];
+        int num_points = sketch.getLengthOfStrokeInPoints(stroke);
+        for (int i = 0; i < num_points; i++) {
+            sketch.getStrokePointByFlattenedIndex(stroke, i)->curvature_value = INITIAL_CURVATURE_MAGNITUDE;
         }
     }
 
     for (int stroke_idx = 0; stroke_idx < convex_strokes.size(); stroke_idx++) {
-        for (int seg_idx = 0; seg_idx < convex_strokes[stroke_idx].size(); seg_idx++) {
-            convex_strokes[stroke_idx][seg_idx].curvature_value = -INITIAL_CURVATURE_MAGNITUDE;
-            for (int i = 0; i < convex_strokes[stroke_idx][seg_idx].seg.size(); i++) {
-                convex_strokes[stroke_idx][seg_idx].seg[i]->curvature_value = -INITIAL_CURVATURE_MAGNITUDE;
-            }
+        auto &stroke = convex_strokes[stroke_idx];
+        int num_points = sketch.getLengthOfStrokeInPoints(stroke);
+        for (int i = 0; i < num_points; i++) {
+            sketch.getStrokePointByFlattenedIndex(stroke, i)->curvature_value = -INITIAL_CURVATURE_MAGNITUDE;
         }
     }
 
 }
 
 void HeightFieldSolver::estimateCurvatureValues(Mesh &mesh, Sketch &sketch) {
-
     estimateCurvatureValuesHelper(mesh, sketch, sketch.getConvexStrokes(), true);
     estimateCurvatureValuesHelper(mesh, sketch, sketch.getConcaveStrokes(), false);
 
@@ -88,10 +85,10 @@ struct F2 {
 };
 
 void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch,
-                                                      std::vector<std::vector<Sketch::CurvatureStrokeSegment>> &strokes, bool convex) {
+                                                      std::vector<Sketch::Stroke> &strokes, bool convex) {
     for (int stroke_idx = 0; stroke_idx < strokes.size(); stroke_idx++) {
-        for (int seg_idx = 0; seg_idx < strokes[stroke_idx].size(); seg_idx++) {
-            auto &segment = strokes[stroke_idx][seg_idx].seg;
+        for (int seg_idx = 0; seg_idx < strokes[stroke_idx].segments.size(); seg_idx++) {
+            auto &segment = strokes[stroke_idx].segments[seg_idx].seg;
             std::vector<Eigen::Vector2f> points;
             int center_idx = segment.size() / 2;
             assert(segment[center_idx]->triangle != nullptr);
@@ -162,12 +159,9 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             // pulls in the opposite direction of the surface normal, which points upward. Concave sections
             // (i.e. "Valleys") have positive normal curvature because the unit tangent vector pull into the
             // same direction as the surface normal.
-            strokes[stroke_idx][seg_idx].curvature_value = convex ? -(1.0 / r) : (1.0 / r);
             for (int i = 0; i < segment.size(); i++) {
                 segment[i]->curvature_value = convex ? -(1.0 / r) : (1.0 / r);
             }
-            std::cout << "******************** " << strokes[stroke_idx][seg_idx].curvature_value << " *********************" << std::endl;
-            std::cout << "radius: "<< r << std::endl;
         }
     }
 }

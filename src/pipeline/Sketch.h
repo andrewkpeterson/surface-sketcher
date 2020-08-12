@@ -25,17 +25,16 @@ public:
         Eigen::Vector3f barycentric_coordinates; // barycentric coordinates of the point inside the triangle
         Eigen::Vector3f coords3d();
         float curvature_value;
+        enum class DirectionField {
+            U,V
+        };
+        DirectionField directionField;
     };
 
     struct CurvatureStrokeSegment {
         // a segment begins at the terminal point of the previous segment and terminates at its last point.
         // The exception to this is the first segment in a stroke, which begins at its own first point.
-        enum class DirectionField {
-            U,V
-        };
         std::vector<std::shared_ptr<StrokePoint>> seg;
-        float curvature_value;
-        DirectionField directionField;
     };
 
     struct LineIntersection {
@@ -43,7 +42,9 @@ public:
         Eigen::Vector2f dir;
     };
 
-    using Stroke = std::vector<CurvatureStrokeSegment>;
+    struct Stroke {
+        std::vector<CurvatureStrokeSegment> segments;
+    };
 
     int width;
     int height;
@@ -60,8 +61,14 @@ public:
     void mapIntersectedFacesToStrokes(Mesh &mesh);
     bool checkStrokePoints(std::shared_ptr<Face> f) const { return face2strokepoints.find(f) != face2strokepoints.end(); }
     bool checkStrokeLines(std::shared_ptr<Face> f) const { return face2lines.find(f) != face2lines.end(); }
-    const std::vector<std::shared_ptr<StrokePoint>>& getStrokePoints(std::shared_ptr<Face> f) const { return face2strokepoints.at(f); }
-    const std::vector<LineIntersection>& getStrokeLines(std::shared_ptr<Face> f) const { return face2lines.at(f); }
+    const std::vector<std::shared_ptr<StrokePoint>>& getStrokePoints(std::shared_ptr<Face> f) const {
+        assert(face2strokepoints.find(f) != face2strokepoints.end());
+        return face2strokepoints.at(f);
+    }
+    const std::vector<LineIntersection>& getStrokeLines(std::shared_ptr<Face> f) const {
+        assert(face2lines.find(f) != face2lines.end());
+        return face2lines.at(f);
+    }
     std::vector<Stroke>& getConvexStrokes() { return convex_strokes; }
     std::vector<Stroke>& getConcaveStrokes() { return concave_strokes; }
     static int getLengthOfStrokeInPoints(const Stroke &stroke);

@@ -83,19 +83,22 @@ Eigen::Vector3f calcBarycentricCoordinates(std::shared_ptr<Face> f, std::shared_
 
 std::shared_ptr<Sketch::StrokePoint> Sketch::getStrokePointByFlattenedIndex(const Stroke &stroke, int idx) {
     assert(idx < getLengthOfStrokeInPoints(stroke));
-    int i = 0;
-    while (i < stroke.size() && idx > 0) {
-        idx -= stroke[i].seg.size();
-        i++;
+    for (int seg_idx = 0; seg_idx < stroke.segments.size(); seg_idx++) {
+        for (int point_idx = 0; point_idx < stroke.segments[seg_idx].seg.size(); point_idx++) {
+            if (idx <= 0) {
+                return stroke.segments[seg_idx].seg[point_idx];
+            } else {
+                idx--;
+            }
+        }
     }
-    if (idx == 0) { return stroke[i].seg[0]; }
-    else { return stroke[i-1].seg[-idx]; }
+    assert(false);
 }
 
 int Sketch::getLengthOfStrokeInPoints(const Stroke &stroke) {
     int length = 0;
-    for (int i = 0; i < stroke.size(); i++) {
-        length += stroke[i].seg.size();
+    for (int i = 0; i < stroke.segments.size(); i++) {
+        length += stroke.segments[i].seg.size();
     }
     return length;
 }
@@ -207,7 +210,7 @@ Sketch::Stroke Sketch::addBendingStrokeFromSVG(NSVGpath *path) {
         segment.seg.push_back(point);
 
         if (add_segment_to_stroke || (i == path->npts - 2)) {
-            stroke.push_back(segment);
+            stroke.segments.push_back(segment);
             add_segment_to_stroke = false;
             segment = CurvatureStrokeSegment();
         }
@@ -244,7 +247,7 @@ Sketch::Sketch(const SketchData &data) {
 }
 
 Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s) {
-    Stroke points;
+    Stroke stroke;
     float curr_length = 0;
     bool first_point_of_segment = true;
     bool add_segment_to_stroke = false;
@@ -256,7 +259,13 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
         // make sure this is not a duplicate of the previous point
         if (i > 0) {
             if ((s[i] - s[i-1]).norm() == 0) {
-                //std::cout << "found duplicate" << std::endl;
+                continue;
+            }
+        }
+
+        // make sure that we do not have duplicate of previous previous point
+        if (i > 1) {
+            if ((s[i] - s[i-2]).norm() == 0) {
                 continue;
             }
         }
@@ -290,14 +299,9 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
             backward_dist = (s[i] - s[i-1]).norm();
         }
 
-        //std::cout << backward_dir << std::endl;
-        //std::cout << backward_dist << std::endl;
-        //std::cout << forward_dir << std::endl;
-        //std::cout << forward_dist << std::endl;
         if (backward_dist == 0 && forward_dist > 0) { point->tangent_dir = (forward_dir / forward_dist).normalized(); }
         else if (forward_dist == 0 && backward_dist > 0) { point->tangent_dir = (backward_dir / backward_dist).normalized(); }
         else { point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized(); }
-        //std::cout << point->tangent_dir << std::endl;
 
         // if this statement executes, then the next point is a duplicate of the current point.
         // We must look ahead two points to compute the tangent directions
@@ -311,25 +315,20 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
             point->tangent_dir = (backward_dir / backward_dist).normalized();
         }
 
-        if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
-            std::cout << "stop" << std::endl;
-        }
-
-        std::cout << "x: " << point->tangent_dir.x() << " y: " << point->tangent_dir.y() << std::endl;
-
-        // need to resolve this by smoothing the stroke. Sometimes, we get something lik s[0] = (0,0), s[1] = (0,1), s[2] = (0,0), which ends up failing this assert
+        // TODO: need to resolve this by smoothing the stroke. Sometimes, we get something like
+        // s[0] = (0,0), s[1] = (0,1), s[2] = (0,0), which ends up failing this assert
         assert(point->tangent_dir.norm() > 0);
 
         segment.seg.push_back(point);
         if (add_segment_to_stroke || (i == s.size() - 1)) {
             //std::cout << "size: " << segment.seg.size() << std::endl;
             //assert(segment.seg.size() > 2);
-            points.push_back(segment);
+            stroke.segments.push_back(segment);
             add_segment_to_stroke = false;
             segment = CurvatureStrokeSegment();
         }
     }
-    return points;
+    return stroke;
 }
 
 void Sketch::mapIntersectedFacesToStrokes(Mesh &mesh) {
@@ -339,56 +338,48 @@ void Sketch::mapIntersectedFacesToStrokes(Mesh &mesh) {
 
 void Sketch::mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> &strokes) {
     for (int stroke_idx = 0; stroke_idx < strokes.size(); stroke_idx++) {
-        for (int segment_idx = 0; segment_idx < strokes[stroke_idx].size(); segment_idx++) {
-            for (int point_idx = 0; point_idx < strokes[stroke_idx][segment_idx].seg.size(); point_idx++) {
-                std::shared_ptr point = strokes[stroke_idx][segment_idx].seg[point_idx];
-                auto func = [&] (std::shared_ptr<Face> f) {
-                    // do a distance check so that time is not wasted on far-away triangles
-                    if ((f->circumcenter - point->coordinates).norm() < getTriangleAndStrokePointDistanceCheck()) {
-                        // check if the StrokePoint is inside the triangle, or if one the previous
-                        // line segment crosses the triangle.
+        int num_points = getLengthOfStrokeInPoints(strokes[stroke_idx]);
+        for (int i = 0; i < num_points; i++) {
+            std::shared_ptr<StrokePoint> point = getStrokePointByFlattenedIndex(strokes[stroke_idx], i);
+            auto func = [&] (std::shared_ptr<Face> f) {
+                // do a distance check so that time is not wasted on far-away triangles
+                if ((f->circumcenter - point->coordinates).norm() < getTriangleAndStrokePointDistanceCheck()) {
+                    // check if the StrokePoint is inside the triangle, or if one the previous
+                    // line segment crosses the triangle.
 
-                        // check if point is in triangle
-                        Eigen::Vector2f v1(f->vertices[0]->coords);
-                        Eigen::Vector2f v2(f->vertices[1]->coords);
-                        Eigen::Vector2f v3(f->vertices[2]->coords);
+                    // check if point is in triangle
+                    Eigen::Vector2f v1(f->vertices[0]->coords);
+                    Eigen::Vector2f v2(f->vertices[1]->coords);
+                    Eigen::Vector2f v3(f->vertices[2]->coords);
 
-                        if (pointInTriangle(point->coordinates, v1, v2, v3)) {
-                            point->triangle = f;
-                            point->barycentric_coordinates = calcBarycentricCoordinates(f, point);
-                            if (face2strokepoints.find(f) != face2strokepoints.end()) {
-                                face2strokepoints[f].push_back(point);
-                            } else { face2strokepoints[f] = std::vector{point}; };
-                            //f->valid = false;
-                        } else {
-                            if (segment_idx > 0 || point_idx > 0) {
-                            // check if previous line segment crossed triangle. There is never any need to check the next line segment ahead of this point.
-                                std::shared_ptr<StrokePoint> prev_point;
-                                if (point_idx > 0) {
-                                    prev_point = strokes[stroke_idx][segment_idx].seg[point_idx-1];
-                                } else if (point_idx == 0) {
-                                    prev_point = strokes[stroke_idx][segment_idx-1].seg[(strokes[stroke_idx][segment_idx-1].seg.size()-1)];
-                                }
-                                if (lineInTriangle(point->coordinates, prev_point->coordinates, v1, v2, v3)) {
-                                    LineIntersection intersection;
-                                    intersection.points = std::make_pair(point, prev_point);
-                                    intersection.dir = (point->coordinates - prev_point->coordinates).normalized();
-                                    assert(!std::isnan(intersection.dir.x()) && !std::isnan(intersection.dir.y()));
-                                    assert(!std::isinf(intersection.dir.x()) && !std::isinf(intersection.dir.y()));
-                                    if (face2lines.find(f) != face2lines.end()) {
-                                        face2lines[f].push_back(intersection);
-                                    } else {
-                                        face2lines[f] = std::vector{intersection};
-                                    }
-                                    //f->valid = false;
+                    if (pointInTriangle(point->coordinates, v1, v2, v3)) {
+                        point->triangle = f;
+                        point->barycentric_coordinates = calcBarycentricCoordinates(f, point);
+                        if (face2strokepoints.find(f) != face2strokepoints.end()) {
+                            face2strokepoints[f].push_back(point);
+                        } else { face2strokepoints[f] = std::vector{point}; };
+                    } else {
+                        if (i > 0) {
+                        // check if previous line segment crossed triangle. There is never any need to check the next line segment ahead of this point.
+                            std::shared_ptr<StrokePoint> prev_point = getStrokePointByFlattenedIndex(strokes[stroke_idx], i-1);
+                            if (lineInTriangle(point->coordinates, prev_point->coordinates, v1, v2, v3)) {
+                                LineIntersection intersection;
+                                intersection.points = std::make_pair(point, prev_point);
+                                intersection.dir = (point->coordinates - prev_point->coordinates).normalized();
+                                assert(!std::isnan(intersection.dir.x()) && !std::isnan(intersection.dir.y()));
+                                assert(!std::isinf(intersection.dir.x()) && !std::isinf(intersection.dir.y()));
+                                if (face2lines.find(f) != face2lines.end()) {
+                                    face2lines[f].push_back(intersection);
+                                } else {
+                                    face2lines[f] = std::vector{intersection};
                                 }
                             }
                         }
                     }
-                };
+                }
+            };
 
-                mesh.forEachTriangle(func);
-            }
+            mesh.forEachTriangle(func);
         }
     }
 }

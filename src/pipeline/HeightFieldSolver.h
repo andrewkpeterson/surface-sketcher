@@ -14,7 +14,7 @@ private:
     static void initializeCurvatureValues(Sketch &sketch);
     static void estimateCurvatureValues(Mesh &mesh, Sketch &sketch);
     static void estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch,
-                                              std::vector<std::vector<Sketch::CurvatureStrokeSegment>> &strokes, bool convex);
+                                              std::vector<Sketch::Stroke> &strokes, bool convex);
     static float fitCircle(Mesh &mesh, Sketch &sketch, std::vector<Eigen::Vector2f> points);
     static void minimizeELambda(Mesh &mesh, const Sketch &sketch);
     static void minimizeEMatch(Mesh &mesh, const Sketch &sketch);
