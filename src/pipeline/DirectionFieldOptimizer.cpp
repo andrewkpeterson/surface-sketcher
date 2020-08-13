@@ -136,8 +136,8 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
     bool constraint_assigned_to_this = (coefficientsForV && directionFieldConstrained == Sketch::StrokePoint::DirectionField::V) ||
                                        (!coefficientsForV && directionFieldConstrained == Sketch::StrokePoint::DirectionField::U);
 
-    if (use_constraint == constraint_assigned_to_this) { std::cout << "stop" << std::endl; }
-    if (constraint_assigned_to_this) {
+    //if (use_constraint == constraint_assigned_to_this) { std::cout << "stop" << std::endl; }
+    if (use_constraint) {
         // Here, we are creating an equation of the form Ax + b = 0. Note that the Eigen solver actually solves Wx = z, so
         // we pass -b into the solver. The modified constraint is the constraint or the negative of the constraint,
         // whichever is closer to the vector being constrained. To create the equation of the form Ax + b, we want to add
