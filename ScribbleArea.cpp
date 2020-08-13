@@ -23,6 +23,58 @@ bool ScribbleArea::openImage(const QString &fileName)
     if (!loadedImage.load(fileName))
         return false;
 
+    int idx = fileName.lastIndexOf(".");
+    QString text = fileName.mid(0, idx);
+    QFile file(text + ".txt");
+    if(!file.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    data.convex.clear();
+    data.boundary.clear();
+    data.concave.clear();
+    QTextStream in(&file);
+    QString line = in.readLine();
+    std::vector<Eigen::Vector2f> curr_vec;
+    while (line != "convex") {
+        if (QString::compare(line,QString("boundary")) != 0 && QString::compare(line, QString("")) != 0) {
+            float x;
+            float y;
+            std::sscanf(line.toUtf8().constData(), "%f %f", &x, &y);
+            curr_vec.push_back(Eigen::Vector2f(x,y));
+        } else if (curr_vec.size() > 0) {
+            data.boundary.push_back(curr_vec);
+        }
+        line = in.readLine();
+    }
+
+    while (line != "concave") {
+        if (line.compare("convex") != 0 && line.compare("") != 0) {
+            float x;
+            float y;
+            std::sscanf(line.toUtf8().constData(), "%f %f", &x, &y);
+            curr_vec.push_back(Eigen::Vector2f(x,y));
+        } else if (curr_vec.size() > 0) {
+            data.convex.push_back(curr_vec);
+        }
+        line = in.readLine();
+    }
+
+    while (!in.atEnd()) {
+        if (line.compare("concave") != 0 && line.compare("") != 0) {
+            float x;
+            float y;
+            std::sscanf(line.toUtf8().constData(), "%f %f", &x, &y);
+            curr_vec.push_back(Eigen::Vector2f(x,y));
+        } else if (curr_vec.size() > 0) {
+            data.concave.push_back(curr_vec);
+        }
+        line = in.readLine();
+    }
+
+    file.close();
+
+
     QSize newSize = loadedImage.size().expandedTo(size());
     resizeImage(&loadedImage, newSize);
     image = loadedImage;
@@ -38,10 +90,40 @@ bool ScribbleArea::saveImage(const QString &fileName, const char *fileFormat)
 
     if (visibleImage.save(fileName, fileFormat)) {
         modified = false;
-        return true;
-    } else {
-        return false;
     }
+    int idx = fileName.lastIndexOf(".");
+    QString text = fileName.mid(0, idx);
+    QFile file(text + ".txt");
+    if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
+        QTextStream stream(&file);
+        char buf[512];
+        stream << "boundary" << endl;
+        for (int i = 0; i < data.boundary.size(); i++) {
+            for (int j = 0; j < data.boundary[i].size(); j++) {
+                std::sprintf(buf, "%f %f", data.boundary[i][j].x(), data.boundary[i][j].y());
+                stream << buf << endl;
+            }
+            stream << endl;
+        }
+        stream << "convex" << endl;
+        for (int i = 0; i < data.convex.size(); i++) {
+            for (int j = 0; j < data.convex[i].size(); j++) {
+                std::sprintf(buf, "%f %f", data.convex[i][j].x(), data.convex[i][j].y());
+                stream << buf << endl;
+            }
+            stream << endl;
+        }
+        stream << "concave" << endl;
+        for (int i = 0; i < data.concave.size(); i++) {
+            for (int j = 0; j < data.concave[i].size(); j++) {
+                std::sprintf(buf, "%f %f", data.concave[i][j].x(), data.concave[i][j].y());
+                stream << buf << endl;
+            }
+            stream << endl;
+        }
+    }
+
+    return true;
 }
 
 void ScribbleArea::setPenColor(const QColor &newColor)

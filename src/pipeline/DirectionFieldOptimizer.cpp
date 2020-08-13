@@ -3,7 +3,6 @@
 #include "Sketch.h"
 
 void DirectionFieldOptimizer::optimizeBendFieldEnergy(Mesh &mesh, Sketch &sketch) {
-    assignDirectionFieldToConstraints(mesh, sketch);
     for (int i = 0; i < NUM_ITERATIONS; i++) {
         runIterationOfBendFieldEnergyOptimization(mesh, sketch);
     }
@@ -133,24 +132,22 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
     Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
     bool use_constraint = (coefficientsForV && (best_v.dot(d) > best_u.dot(d))) ||
                           (!coefficientsForV && (best_u.dot(d) > best_v.dot(d)));
-    bool constraint_assigned_to_this = (coefficientsForV && directionFieldConstrained == Sketch::StrokePoint::DirectionField::V) ||
-                                       (!coefficientsForV && directionFieldConstrained == Sketch::StrokePoint::DirectionField::U);
 
-    //if (use_constraint == constraint_assigned_to_this) { std::cout << "stop" << std::endl; }
+
     if (use_constraint) {
         // Here, we are creating an equation of the form Ax + b = 0. Note that the Eigen solver actually solves Wx = z, so
         // we pass -b into the solver. The modified constraint is the constraint or the negative of the constraint,
         // whichever is closer to the vector being constrained. To create the equation of the form Ax + b, we want to add
         // the negative of the modified constraint to b at the correct indices.
-        Eigen::Vector2f modified_constraint = ((coefficientsForV && f->v.dot(d) > 0) || (!coefficientsForV && f->u.dot(d) > 0)) ? d : -d;
-        float mult = f->area / mesh.getTotalArea();
+        Eigen::Vector2f modified_constraint = ((coefficientsForV && f->v.dot(d) > 0) || (!coefficientsForV && f->u.dot(d) > 0)) ? d.normalized() : -d.normalized();
+        float mult = 2 * f->area / mesh.getTotalArea() * STROKE_CONSTRAINT_WEIGHT;
         std::pair<int, int> x_idx(2*f->index, 2*f->index);
-        addToSparseMap(x_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index) += -mult * STROKE_CONSTRAINT_WEIGHT * modified_constraint.x();
+        addToSparseMap(x_idx, mult, m);
+        b(2*f->index) += -mult * modified_constraint.x();
 
         std::pair<int, int> y_idx(2*f->index + 1, 2*f->index + 1);
-        addToSparseMap(y_idx, mult * STROKE_CONSTRAINT_WEIGHT, m);
-        b(2*f->index + 1) += -mult * STROKE_CONSTRAINT_WEIGHT * modified_constraint.y();
+        addToSparseMap(y_idx, mult, m);
+        b(2*f->index + 1) += -mult * modified_constraint.y();
     }
 }
 

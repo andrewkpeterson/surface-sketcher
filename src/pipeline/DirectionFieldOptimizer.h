@@ -46,7 +46,7 @@ private:
         }
     }
 
-    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 1;
+    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 1e5;
     static constexpr const int NUM_ITERATIONS = 5;
 };
 

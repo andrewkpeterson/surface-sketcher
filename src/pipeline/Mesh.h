@@ -34,6 +34,9 @@ struct Face {
     Eigen::Vector2f v = Eigen::Vector2f(0,0);
     float lambda_u = 0;
     float lambda_v = 0;
+    bool initial_dir1_for_u = false;
+    int dir1_votes_for_u = 0;
+    int dir2_votes_for_u = 0;
     bool discontinuity = false;
     Eigen::Vector2f z1 = Eigen::Vector2f(0,0);
     Eigen::Vector2f z2 = Eigen::Vector2f(0,0);

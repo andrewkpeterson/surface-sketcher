@@ -24,7 +24,8 @@ private:
                                               std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
     static void addCoefficientsForESmooth(Face *f, Face *g, double val, std::map<std::pair<int,int>, double> &m);
     static void initializeDirectionFieldFromSolutionVector(Mesh &m, Eigen::VectorXd &x);
-    static void initializeDirectionFieldFromSolutionVectorHelper(Mesh &m, Eigen::VectorXd &x, std::set<Face*> &visited_faces, int index, bool first);
+    static void initializeDirectionFieldFromSolutionVectorHelper(Mesh &m, std::map<int, std::pair<Eigen::Vector2f, Eigen::Vector2f> > &vectors,
+                                                                 std::set<Face*> &visited_faces, int index);
     static void checkSmoothness(Mesh &mesh, Eigen::VectorXd &x);
     static inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
         if (m.find(p) == m.end()) {
@@ -38,7 +39,7 @@ private:
     static constexpr const double OMEGA_C = 1e3; // 1e3
     static constexpr const double OMEGA_O = 1e-5; //1e-5
 
-    static constexpr const double AVERAGE_MULTIPLER = 1.5;
+    static constexpr const int NUM_VOTING_ITERATIONS = 50;
 };
 
 #endif // DIRECTIONFIELDSOLVER_H
