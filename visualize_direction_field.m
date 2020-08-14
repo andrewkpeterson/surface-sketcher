@@ -14,12 +14,12 @@ quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "o
 quiver(xs, ys, -v1, -v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
 
 figure(2)
-quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "off");
+quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -u1, -u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "off");
 
 figure(3)
-quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
+quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -v1, -v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
 
@@ -83,11 +83,11 @@ quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "o
 quiver(xs, ys, -v1, -v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
 
 figure(5)
-quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
+quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -v1, -v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
 
 figure(6)
-quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "off");
+quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -u1, -u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "off");
