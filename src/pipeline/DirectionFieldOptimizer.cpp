@@ -157,8 +157,8 @@ void DirectionFieldOptimizer::addCoefficientsForBendFieldEnergy(Mesh &mesh, cons
         Eigen::Vector2f p = f->circumcenter;
         Eigen::MatrixXd A = Eigen::MatrixXd::Zero(2, 3);
         for (int i = 0; i < f->neighbors.size(); i++) {
-            A(0,i) = p.x() - f->neighbors[i]->circumcenter.x();
-            A(1,i) = p.y() - f->neighbors[i]->circumcenter.y();
+            A(0,i) = f->neighbors[i]->circumcenter.x() - p.x();
+            A(1,i) = f->neighbors[i]->circumcenter.y() - p.y();
         }
 
         // If we are optimizing the v direction field, we multiply the jacobian of v with

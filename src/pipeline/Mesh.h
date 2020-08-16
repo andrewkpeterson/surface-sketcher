@@ -70,6 +70,7 @@ public:
 
     std::shared_ptr<const Face> getConstFace(int i) { return index2face[i]; }
     std::shared_ptr<Face> getFace(int i) { return index2face[i]; }
+    const std::unordered_set<std::shared_ptr<Face>> &getEdgeFaces() { return edge_faces; }
 
     static float calcTriangleArea(const Face_handle f);
     static float calcTriangleArea(const Eigen::Vector2f v1, const Eigen::Vector2f v2, const Eigen::Vector2f v3);
@@ -81,6 +82,7 @@ private:
 
     std::unordered_map<int, std::shared_ptr<Face>> index2face;
     std::unordered_map<int, std::shared_ptr<Vertex>> index2vertex;
+    std::unordered_set<std::shared_ptr<Face>> edge_faces;
 
     int m_num_triangles;
     int m_num_vertices;

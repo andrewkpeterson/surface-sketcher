@@ -91,6 +91,7 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
                 }
                 f->vertices.push_back(visited_vertices[it->vertex(i)]);
             }
+            if (f->neighbors.size() < 3) { edge_faces.insert(f); }
         }
     }
 

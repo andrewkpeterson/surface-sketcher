@@ -142,126 +142,136 @@ void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVector(Mesh 
         vectors[f->index] = std::pair(dir1.normalized(), dir2.normalized());
     });
 
-    // go through all of the a values to find the smallest one, indicating the
-    // (u,v) pair that is most perpendicular
-    int most_perpendicular_index = 0;
-    double smallest_dot = INFINITY;
-    for (auto it = vectors.begin(); it != vectors.end(); it++) {
-        double dot = it->second.first.dot(it->second.second);
-        if (dot < smallest_dot) {
-            most_perpendicular_index = it->first;
-            smallest_dot = dot;
-        }
-    }
+    assignVectors(m, vectors);
 
-    std::set<Face*> visited_faces_initial;
-    Eigen::VectorXf initial_assignments = Eigen::VectorXf::Zero(m.getNumTriangles());
-    auto f = m.getFace(most_perpendicular_index);
-    Eigen::Vector2f dir1 = vectors[most_perpendicular_index].first;
-    Eigen::Vector2f dir2 = vectors[most_perpendicular_index].second;
-    f->u = dir1;
-    f->v = dir2;
-    visited_faces_initial.insert(f.get());
-
-    // this is an improvement on depth-first
-    initializeDirectionFieldFromSolutionVectorHelper(m, vectors, visited_faces_initial, most_perpendicular_index);
-
-    //make all u vectors flow same way, do same for v vectors
-    std::set<Face*> visited_faces_fix_direction;
-    fixSignOfDirectionVectors(m, most_perpendicular_index, visited_faces_fix_direction);
 }
 
-void DirectionFieldInitializer::fixSignOfDirectionVectors(Mesh &m, int index, std::set<Face*> &visited_faces) {
-    auto f = m.getFace(index);
-    int negate_u = 0;
-    int negate_v = 0;
-    int num_neighbors = 0;
-    for (int i = 0; i < f->neighbors.size(); i++) {
-        if (visited_faces.find(f->neighbors[i]) != visited_faces.end()) {
-            num_neighbors++;
-            if (f->u.dot(f->neighbors[i]->u) < 0) { negate_u++; }
-            if (f->v.dot(f->neighbors[i]->v) < 0) { negate_v++; }
-        }
-    }
-    if (negate_u > num_neighbors) { f->u = -f->u; }
-    if (negate_v > num_neighbors) { f->v = -f->v; }
-    visited_faces.insert(f.get());
-    for (int i = 0; i < f->neighbors.size(); i++) {
-        if (visited_faces.find(f->neighbors[i]) == visited_faces.end()) {
-            fixSignOfDirectionVectors(m, f->neighbors[i]->index, visited_faces);
-        }
-    }
-}
+void DirectionFieldInitializer::assignVectors(Mesh &m, std::map<int, std::pair<Eigen::Vector2f, Eigen::Vector2f>> vectors) {
 
-Eigen::Vector2f DirectionFieldInitializer::averageNearbyVectors(Mesh &m, std::set<Face*> &visited_faces, std::set<Face*> &added_faces, Face *f, int depth_left, bool forV) {
-    added_faces.insert(f);
-    if (depth_left > 0) {
-        Eigen::Vector2f sum(0,0);
+    // determine how u, v should be matched to dir1, dir2
+    m.forEachTriangle([&](std::shared_ptr<Face> f) {
+        int flipped = std::rand() % 2;
+        if (flipped) {
+            f->u = vectors[f->index].first;
+            f->v = vectors[f->index].second;
+        } else {
+            f->u = vectors[f->index].second;
+            f->v = vectors[f->index].first;
+        }
+    });
+
+    float total_cost = 0;
+    m.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
+        auto u = f->u.dot(g->u) > 0 ? f->u : -f->u;
+        auto v = f->v.dot(g->v) > 0 ? f->v : -f->v;
+        float u_diff = (u - g->u).norm();
+        float v_diff = (v - g->v).norm();
+        total_cost += u_diff + v_diff;
+    });
+
+    for (int iter = 0; iter < ANNEALING_ITERATIONS; iter++) {
+        int idx = std::rand() % m.getNumTriangles();
+        Face *f = m.getFace(idx).get();
+        float old_cost = 0;
+        float new_cost = 0;
         for (int i = 0; i < f->neighbors.size(); i++) {
-            if (visited_faces.find(f->neighbors[i]) != visited_faces.end() && added_faces.find(f->neighbors[i]) == added_faces.end()) {
-                Eigen::Vector2f new_vec = averageNearbyVectors(m, visited_faces, added_faces, f->neighbors[i], depth_left-1, forV);
-                if (sum.dot(new_vec) < 0) {
-                    sum += -new_vec;
-                } else {
-                    sum += new_vec;
-                }
-            }
+            auto neighbor = f->neighbors[i];
+            auto u_matched_with_neighbor_u = f->u.dot(neighbor->u) > 0 ? f->u : -f->u;
+            auto u_matched_with_neighbor_v = f->u.dot(neighbor->v) > 0 ? f->u : -f->u;
+            auto v_matched_with_neigbor_v = f->v.dot(neighbor->v) > 0 ? f->v : -f->v;
+            auto v_matched_with_neigbor_u = f->v.dot(neighbor->u) > 0 ? f->v : -f->v;
+            old_cost += (u_matched_with_neighbor_u - neighbor->u).norm() + (v_matched_with_neigbor_v - neighbor->v).norm();
+            new_cost += (v_matched_with_neigbor_u - neighbor->u).norm() + (u_matched_with_neighbor_v - neighbor->v).norm();
         }
 
-        Eigen::Vector2f curr_face_vector = forV ? f->v : f->u;
-        curr_face_vector = sum.dot(curr_face_vector) < 0 ? -curr_face_vector : curr_face_vector;
+        float new_total_cost = total_cost - old_cost + new_cost;
 
-        if (visited_faces.find(f) != visited_faces.end() && (sum + curr_face_vector).norm() > 0 && depth_left < AVERAGING_DEPTH) { return (sum + curr_face_vector); }
-        else if (sum.norm() > 0) { return sum; }
-        else { return Eigen::Vector2f(0,0); }
-    } else {
-        Eigen::Vector2f curr_face_vector = forV ? f->v : f->u;
-        if (visited_faces.find(f) != visited_faces.end() && curr_face_vector.norm() > 0) { return curr_face_vector; }
-        else { return Eigen::Vector2f(0,0); }
+        float temp = INITIAL_TEMPERATURE * std::pow((1 - float(iter) / float(ANNEALING_ITERATIONS)), 2.0);
+        float prob = std::exp(-(new_total_cost - total_cost) / temp);
+        float rand_num = (float(std::rand()) / float(INT_MAX));
+        if (prob >= rand_num) {
+            auto saved_v = f->v;
+            f->v = f->u;
+            f->u = saved_v;
+            total_cost = new_total_cost;
+        }
     }
+
+    std::set<Face*> visited_faces;
+    fixSignOfDirectionVectors(m, true);
+    fixSignOfDirectionVectors(m, false);
 }
 
-void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVectorHelper(Mesh &m, std::map<int, std::pair<Eigen::Vector2f, Eigen::Vector2f>> &vectors,
-                                                                                        std::set<Face*> &visited_faces, int start_index) {
+void DirectionFieldInitializer::fixSignOfDirectionVectors(Mesh &m, bool forV) {
+    /*
     std::queue<Face*> queue;
-    auto f = m.getFace(start_index);
-    visited_faces.insert(f.get());
+    std::set<Face*> enqueued_faces;
+    auto f = m.getFace(0);
+    enqueued_faces.insert(f.get());
     for (int i = 0; i < f->neighbors.size(); i++) {
         queue.push(f->neighbors[i]);
+        enqueued_faces.insert(f->neighbors[i]);
     }
 
     while(!queue.empty()) {
         auto f = queue.front();
         queue.pop();
-        visited_faces.insert(f);
+        enqueued_faces.insert(f);
 
-        Eigen::Vector2f dir1 = vectors[f->index].first;
-        Eigen::Vector2f dir2 = vectors[f->index].second;
+        int negate_u = 0;
+        int negate_v = 0;
+        int num_neighbors = 0;
+        for (int i = 0; i < f->neighbors.size(); i++) {
+            if (enqueued_faces.find(f->neighbors[i]) != enqueued_faces.end()) {
+                num_neighbors++;
+                if (f->u.dot(f->neighbors[i]->u) < 0) { negate_u++; }
+                if (f->v.dot(f->neighbors[i]->v) < 0) { negate_v++; }
+            }
+        }
+        if (negate_u > num_neighbors) { f->u = -f->u; }
+        if (negate_v > num_neighbors) { f->v = -f->v; }
+        for (int i = 0; i < f->neighbors.size(); i++) {
+            if (enqueued_faces.find(f->neighbors[i]) == enqueued_faces.end()) {
+                queue.push(f->neighbors[i]);
+                enqueued_faces.insert(f->neighbors[i]);
+            }
+        }
+    }
+    */
 
-        std::set<Face*> added_faces_u;
-        Eigen::Vector2f smooth_u = averageNearbyVectors(m, visited_faces, added_faces_u, f, AVERAGING_DEPTH, false).normalized();
-        std::set<Face*> added_faces_v;
-        Eigen::Vector2f smooth_v = averageNearbyVectors(m, visited_faces, added_faces_v, f, AVERAGING_DEPTH, true).normalized();
+    m.forEachTriangle([&](std::shared_ptr<Face> f) {
+        int flipped = std::rand() % 2;
+        if (flipped) {
+            if (forV) { f->v = -f->v; }
+            else { f->u = -f->u; }
+        }
+    });
 
-        Eigen::Vector2f best_u_for_dir1 = (smooth_u.dot(dir1)) > (-smooth_u.dot(dir1)) ? smooth_u : -smooth_u;
-        Eigen::Vector2f best_v_for_dir1 = (smooth_v.dot(dir1)) > (-smooth_v.dot(dir1)) ? smooth_v : -smooth_v;
-        Eigen::Vector2f best_u_for_dir2 = (smooth_u.dot(dir2)) > (-smooth_u.dot(dir2)) ? smooth_u : -smooth_u;
-        Eigen::Vector2f best_v_for_dir2 = (smooth_v.dot(dir2)) > (-smooth_v.dot(dir2)) ? smooth_v : -smooth_v;
+    float total_cost = 0;
+    m.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
+        float cost = forV ? f->v.dot(g->v) < 0 : f->u.dot(g->u) < 0;
+        total_cost += cost;
+    });
 
-        bool dir1_assigned_to_v = best_u_for_dir2.dot(dir2) + best_v_for_dir1.dot(dir1) > best_u_for_dir1.dot(dir1) + best_v_for_dir2.dot(dir2);
-
-        if (dir1_assigned_to_v) {
-            f->v = dir1;
-            f->u = dir2;
-        } else {
-            f->v = dir2;
-            f->u = dir1;
+    for (int iter = 0; iter < ANNEALING_ITERATIONS_FOR_SIGN; iter++) {
+        int idx = std::rand() % m.getNumTriangles();
+        Face *f = m.getFace(idx).get();
+        float old_cost = 0;
+        float new_cost = 0;
+        for (int i = 0; i < f->neighbors.size(); i++) {
+            auto neighbor = f->neighbors[i];
+            old_cost += forV ? f->v.dot(neighbor->v) < 0 : f->u.dot(neighbor->u) < 0;
+            new_cost += forV ? -f->v.dot(neighbor->v) < 0 : -f->u.dot(neighbor->u) < 0;
         }
 
-        for (int i = 0; i < f->neighbors.size(); i++) {
-            if (visited_faces.find(f->neighbors[i]) == visited_faces.end()) {
-                queue.push(f->neighbors[i]);
-            }
+        float new_total_cost = total_cost - old_cost + new_cost;
+
+        float temp = INITIAL_TEMPERATURE * std::pow((1 - float(iter) / float(ANNEALING_ITERATIONS_FOR_SIGN)), 2.0);
+        float prob = std::exp(-(new_total_cost - total_cost) / temp);
+        float rand_num = (float(std::rand()) / float(INT_MAX));
+        if (prob >= rand_num) {
+            if (forV) { f->v = -f->v; }
+            else { f->u = -f->u; }
         }
     }
 }
@@ -276,7 +286,7 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
     std::map<std::pair<int,int>, double> sparse_map;
     // add coefficients for E_smooth
-    mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) { // why are the non-smooth sections always appearing in the same places?
+    mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);
         double val = (1.0 / mesh.getTotalArea()) * 2 * efg * OMEGA_S;
         addCoefficientsForESmooth(f, g, val, sparse_map);
@@ -329,13 +339,4 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
 
     // use the solution to initialize u and v for each face
     initializeDirectionFieldFromSolutionVector(mesh, x);
-}
-
-void DirectionFieldInitializer::printSparseMatrix(const SparseMat mat) {
-    for (int row = 0; row < mat.rows(); row++) {
-        for (int col = 0; col < mat.cols(); col++) {
-            std::cout << mat.coeff(row, col) << " ";
-        }
-        std::cout << std::endl;
-    }
 }

@@ -22,6 +22,11 @@ figure(3)
 quiver(xs, ys, v1, v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -v1, -v2, .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "off");
+fileID = fopen("discontinuities.txt");
+C = textscan(fileID, "%f %f");
+xs = cell2mat(C(1,1));
+ys = -cell2mat(C(1,2));
+scatter(xs,ys,"filled");
 
 %{
 figure(4);
