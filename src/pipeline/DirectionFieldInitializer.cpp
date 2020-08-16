@@ -132,8 +132,7 @@ void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVector(Mesh 
         // by a rotation by pi radians, both of which are the directions we want in the
         // 4 direction field
         std::complex<double> dir1_complex = std::sqrt(z1);
-        std::complex<double> dir2_complex = std::sqrt(z2);
-        //std::complex<double> v_complex = std::sqrt(b / z); // we can also solve by v by taking sqrt(a - z), and we will get the same thing
+        std::complex<double> dir2_complex = std::sqrt(z2); // we can also solve for dir2_complex by taking sqrt(a - dir1_complex), and we will get the same thing
 
         Eigen::Vector2f dir1(dir1_complex.real(), dir1_complex.imag());
         Eigen::Vector2f dir2(dir2_complex.real(), dir2_complex.imag());
@@ -143,7 +142,8 @@ void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVector(Mesh 
     });
 
     assignVectors(m, vectors);
-
+    fixSignOfDirectionVectors(m, true);
+    fixSignOfDirectionVectors(m, false);
 }
 
 void DirectionFieldInitializer::assignVectors(Mesh &m, std::map<int, std::pair<Eigen::Vector2f, Eigen::Vector2f>> vectors) {
@@ -196,49 +196,9 @@ void DirectionFieldInitializer::assignVectors(Mesh &m, std::map<int, std::pair<E
             total_cost = new_total_cost;
         }
     }
-
-    std::set<Face*> visited_faces;
-    fixSignOfDirectionVectors(m, true);
-    fixSignOfDirectionVectors(m, false);
 }
 
 void DirectionFieldInitializer::fixSignOfDirectionVectors(Mesh &m, bool forV) {
-    /*
-    std::queue<Face*> queue;
-    std::set<Face*> enqueued_faces;
-    auto f = m.getFace(0);
-    enqueued_faces.insert(f.get());
-    for (int i = 0; i < f->neighbors.size(); i++) {
-        queue.push(f->neighbors[i]);
-        enqueued_faces.insert(f->neighbors[i]);
-    }
-
-    while(!queue.empty()) {
-        auto f = queue.front();
-        queue.pop();
-        enqueued_faces.insert(f);
-
-        int negate_u = 0;
-        int negate_v = 0;
-        int num_neighbors = 0;
-        for (int i = 0; i < f->neighbors.size(); i++) {
-            if (enqueued_faces.find(f->neighbors[i]) != enqueued_faces.end()) {
-                num_neighbors++;
-                if (f->u.dot(f->neighbors[i]->u) < 0) { negate_u++; }
-                if (f->v.dot(f->neighbors[i]->v) < 0) { negate_v++; }
-            }
-        }
-        if (negate_u > num_neighbors) { f->u = -f->u; }
-        if (negate_v > num_neighbors) { f->v = -f->v; }
-        for (int i = 0; i < f->neighbors.size(); i++) {
-            if (enqueued_faces.find(f->neighbors[i]) == enqueued_faces.end()) {
-                queue.push(f->neighbors[i]);
-                enqueued_faces.insert(f->neighbors[i]);
-            }
-        }
-    }
-    */
-
     m.forEachTriangle([&](std::shared_ptr<Face> f) {
         int flipped = std::rand() % 2;
         if (flipped) {
@@ -285,6 +245,7 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     SparseMat A(num_faces*4, num_faces*4); // multiply faces by 4 to account for real and imaginary parts of a and b values for each face
     Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*4);
     std::map<std::pair<int,int>, double> sparse_map;
+
     // add coefficients for E_smooth
     mesh.forEachPairOfNeighboringTriangles([&](Face *f, Face *g) {
         double efg = Mesh::calcEFGArea(f, g);

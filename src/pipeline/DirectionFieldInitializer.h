@@ -39,7 +39,7 @@ private:
     static constexpr const double OMEGA_O = 1e-5; //1e-5
 
     static constexpr const int ANNEALING_ITERATIONS = 2e8; // 2e8 for .2 fineness, 2e8 for .1 fineness, 6e8 for .05 fineness
-    static constexpr const int ANNEALING_ITERATIONS_FOR_SIGN = 1e8; // 2e8 for .2 fineness, 2e8 for .1 fineness, 6e8 for .05 fineness
+    static constexpr const int ANNEALING_ITERATIONS_FOR_SIGN = 2e8; // 2e8 for .2 fineness, 2e8 for .1 fineness, 6e8 for .05 fineness
     static constexpr const float INITIAL_TEMPERATURE = 7; // 5 for .2 fineness, 5 for .1 fineness, 5 for .05 fineness
 };
 

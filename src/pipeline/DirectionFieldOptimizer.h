@@ -46,8 +46,8 @@ private:
         }
     }
 
-    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 1e-5;
-    static constexpr const int NUM_ITERATIONS = 6;
+    static constexpr const float STROKE_CONSTRAINT_WEIGHT = 10;
+    static constexpr const int NUM_ITERATIONS = 5;
 };
 
 #endif // DIRECTIONFIELDOPTIMIZER_H
