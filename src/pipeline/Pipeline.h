@@ -70,7 +70,7 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Optimizing BendField energy of curvature direction field..." << std::endl;
-        DirectionFieldOptimizer::optimizeBendFieldEnergy(mesh, sketch);
+        //DirectionFieldOptimizer::optimizeBendFieldEnergy(mesh, sketch);
         std::cout << "DONE" << std::endl;
 
         std::cout << "Writing result mesh to file" << std::endl;
@@ -78,7 +78,8 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Optimizing height field..." << std::endl;
-        //HeightFieldSolver::solveForHeightField(mesh, sketch);
+        HeightFieldSolver::solveForHeightField(mesh, sketch);
+        std::cout << "DONE" << std::endl;
 
         std::cout << "Writing result mesh to file" << std::endl;
         OBJWriter::writeOBJ(mesh, "result.obj", "final_directions.txt");

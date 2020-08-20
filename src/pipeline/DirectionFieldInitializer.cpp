@@ -254,19 +254,26 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     });
 
     // add coefficients for E_constraint
+    // we make sure not to apply the same constraint more than once to the same face
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
         double mult = (1.0 / mesh.getTotalArea()) * 2 * OMEGA_C * f->area;
-
+        std::set<int> strokes;
         if (sketch.checkStrokePoints(f)) {
             for (int i = 0; i < sketch.getStrokePoints(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir;
-                addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
+                if (strokes.find(sketch.getStrokePoints(f)[i]->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir;
+                    addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
+                }
+                strokes.insert(sketch.getStrokePoints(f)[i]->strokeId);
             }
         }
         if (sketch.checkStrokeLines(f)) {
             for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir;
-                addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
+                if (strokes.find(sketch.getStrokeLines(f)[i].points.first->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir;
+                    addCoefficientsForEConstraint(f, mult, dir, sparse_map, b);
+                }
+                strokes.insert(sketch.getStrokeLines(f)[i].points.first->strokeId);
             }
         }
     });
@@ -295,8 +302,6 @@ void DirectionFieldInitializer::initializeDirectionField(Mesh &mesh, const Sketc
     solver.analyzePattern(A);
     solver.factorize(A);
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than b because the solver solves Ax = b, but b was set up to solve Ax + b = 0
-    //std::cout << solver.info() << std::endl;
-    //std::cout << solver.lastErrorMessage() << std::endl;
 
     // use the solution to initialize u and v for each face
     initializeDirectionFieldFromSolutionVector(mesh, x);

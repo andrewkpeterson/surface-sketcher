@@ -13,6 +13,7 @@ struct Vertex {
     int index;
     Eigen::Vector2f coords;
     float height = 0;
+    bool boundary = false;
 
     Eigen::Vector3f coords3d() {
         return Eigen::Vector3f(coords[0], coords[1], height);
@@ -45,7 +46,9 @@ struct Face {
 
 
     Eigen::Vector3f normal() {
-        return (vertices[0]->coords3d() - vertices[1]->coords3d()).cross(vertices[0]->coords3d() - vertices[2]->coords3d()).normalized();
+        Eigen::Vector3f n = (vertices[0]->coords3d() - vertices[1]->coords3d()).cross(vertices[0]->coords3d() - vertices[2]->coords3d()).normalized();
+        n = n.dot(Eigen::Vector3f(0,0,1)) > 0 ? n : -n;
+        return n;
     }
 };
 
@@ -59,8 +62,10 @@ public:
     void forEachVertex(const std::function<void(std::shared_ptr<Vertex>)> &func);
 
     void forEachTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
+    void forEachBoundaryTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
     void forEachPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const;
     void forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
+    void forEachBoundaryVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
 
     static float calcEFGArea(const Face *f, const Face *g);
     int getNumTriangles() const { return m_num_triangles; }

@@ -20,7 +20,7 @@ MainWindow::MainWindow(QWidget *parent) :
     createActions();
     createMenus();
 
-    setWindowTitle(tr("Scribble"));
+    setWindowTitle(tr("bendsketch-lite"));
     resize(500, 500);
 }
 

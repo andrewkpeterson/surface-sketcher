@@ -112,6 +112,12 @@ void Mesh::forEachTriangle(const std::function<void(std::shared_ptr<const Face>)
     }
 }
 
+void Mesh::forEachBoundaryTriangle(const std::function<void (std::shared_ptr<const Face>)> &func) const {
+    for (auto it = index2face.begin(); it != index2face.end(); it++) {
+        if (it->second->neighbors.size() < 3) { func(it->second); }
+    }
+}
+
 void Mesh::forEachPairOfNeighboringTriangles(const std::function<void(Face*, Face*)> &func) {
     std::unordered_set<Face*> visited_faces;
     for (auto it = index2face.begin(); it != index2face.end(); it++) {
@@ -145,6 +151,12 @@ void Mesh::forEachVertex(const std::function<void(std::shared_ptr<Vertex>)> &fun
 void Mesh::forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const {
     for (auto it = index2vertex.begin(); it != index2vertex.end(); it++) {
         func(it->second);
+    }
+}
+
+void Mesh::forEachBoundaryVertex(const std::function<void (std::shared_ptr<const Vertex>)> &func) const {
+    for (auto it = index2vertex.begin(); it != index2vertex.end(); it++) {
+        if (it->second->boundary) { func(it->second); }
     }
 }
 

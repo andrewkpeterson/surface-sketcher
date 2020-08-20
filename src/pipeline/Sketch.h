@@ -25,10 +25,7 @@ public:
         Eigen::Vector3f barycentric_coordinates; // barycentric coordinates of the point inside the triangle
         Eigen::Vector3f coords3d();
         float curvature_value;
-        enum class DirectionField {
-            U,V
-        };
-        DirectionField directionField;
+        int strokeId;
     };
 
     struct CurvatureStrokeSegment {
@@ -44,6 +41,7 @@ public:
 
     struct Stroke {
         std::vector<CurvatureStrokeSegment> segments;
+        int id;
     };
 
     int width;
@@ -55,7 +53,7 @@ public:
     }
 
     Stroke addBendingStrokeFromSVG(NSVGpath *path);
-    Stroke addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s);
+    Stroke addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s, int id);
     float getBendingStrokeSegmentLength() { return diagonal_of_bounding_box / 30.0f; }
     float getTriangleAndStrokePointDistanceCheck() const { return diagonal_of_bounding_box / 10.0f; }
     void mapIntersectedFacesToStrokes(Mesh &mesh);

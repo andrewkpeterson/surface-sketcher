@@ -4,17 +4,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "ceres/ceres.h"
+#include "src/utils/OBJWriter.h"
 
 void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
 
+    /*
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
         f->vertices[0]->height = std::sin(f->vertices[0]->coords.y() * 2);
         f->vertices[1]->height = std::sin(f->vertices[1]->coords.y() * 2);
         f->vertices[2]->height = std::sin(f->vertices[2]->coords.y() * 2);
     });
     estimateCurvatureValues(mesh, sketch);
+    */
 
-    /*
     for (int i = 0; i < NUM_ITERATIONS; i++) {
         if (i == 0) {
             initializeCurvatureValues(sketch);
@@ -22,9 +24,8 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
             estimateCurvatureValues(mesh, sketch);
         }
         minimizeELambda(mesh, sketch);
-        minimizeEMatch(mesh, sketch);
+        optimizeHeightField(mesh, sketch);
     }
-    */
 
 }
 
@@ -109,13 +110,6 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
                 Eigen::Vector3f projected_point = segment[p_idx]->coords3d() - (segment[p_idx]->coords3d() - origin).dot(plane_normal) * plane_normal;
                 Eigen::Vector2f point_on_plane = Eigen::Vector2f((projected_point - origin).dot(n), (projected_point - origin).dot(other_basis));
                 points.push_back(point_on_plane);
-                /*
-                std::cout << "coords: " << segment[p_idx]->coords3d().x() << " " << segment[p_idx]->coords3d().y() << " " << segment[p_idx]->coords3d().z() << std::endl;
-                std::cout << "projected point: " << point_on_plane.x() << " " << point_on_plane.y() << std::endl;
-                std::cout << "plane_normal:" << plane_normal.x() << " " << plane_normal.y() << " " << plane_normal.z() << std::endl;
-                std::cout << "n:" << n.x() << " " << n.y() << " " << n.z() << std::endl;
-                std::cout << "t:" << t.x() << " " << t.y() << " " << t.z() << std::endl;
-                */
             }
 
             using ceres::AutoDiffCostFunction;
@@ -168,12 +162,396 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
 
 void HeightFieldSolver::minimizeELambda(Mesh &mesh, const Sketch &sketch) {
 
+    int num_faces = mesh.getNumTriangles();
 
+    // get A and b to calculate new u vectors
+    std::vector<Triplet> A_coefficients;
+    SparseMat A(num_faces*2, num_faces*2);
+    Eigen::VectorXd b = Eigen::VectorXd::Zero(num_faces*2);
+    std::map<std::pair<int,int>, double> A_map;
+
+    addCoefficientsForELambda(mesh, sketch, A_map, true, true);
+    addCoefficientsForELambda(mesh, sketch, A_map, true, false);
+    addCoefficientsForELambda(mesh, sketch, A_map, false, true);
+    addCoefficientsForELambda(mesh, sketch, A_map, false, false);
+    addConstraintsForELambda(mesh, sketch, A_map, b);
+
+    for (auto it = A_map.begin(); it != A_map.end(); it++) {
+        A_coefficients.push_back(Triplet(it->first.first, it->first.second, it->second));
+    }
+    A.setFromTriplets(A_coefficients.begin(), A_coefficients.end());
+
+    // solve for u vectors
+    A.makeCompressed();
+    Eigen::SparseLU<SparseMat> solver(A);
+    solver.analyzePattern(A);
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+    solver.factorize(A);
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+    Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+
+    mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
+        f->lambda_u = x(2*f->index);
+        f->lambda_v = x(2*f->index + 1);
+    });
+}
+
+void HeightFieldSolver::addCoefficientsForELambda(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>,double> &m, bool constraining_lambda_u, bool in_dir_u) {
+
+    mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
+        Eigen::Vector2f p = f->circumcenter;
+        Eigen::MatrixXd A = Eigen::MatrixXd::Zero(2, 3);
+        for (int i = 0; i < f->neighbors.size(); i++) {
+            A(0,i) = f->neighbors[i]->circumcenter.x() - p.x();
+            A(1,i) = f->neighbors[i]->circumcenter.y() - p.y();
+        }
+
+        Eigen::Vector2f q = in_dir_u ? f->u : f->v;
+        Eigen::MatrixXd A_pinv = A.completeOrthogonalDecomposition().pseudoInverse();
+
+        float k = q.x() * (A_pinv(0,0) + A_pinv(1,0) + A_pinv(2,0)) + q.y() * (A_pinv(0,1) + A_pinv(1,1) + A_pinv(2,1));
+        float k1 = -(q.x() * A_pinv(0,0) + q.y() * A_pinv(0,1));
+        float k2 = -(q.x() * A_pinv(1,0) + q.y() * A_pinv(1,1));
+        float k3 = -(q.x() * A_pinv(2,0) + q.y() * A_pinv(2,1));
+
+        assert((k1 == 0 && f->neighbors.size() < 1) || f->neighbors.size() >= 1);
+        assert((k2 == 0 && f->neighbors.size() < 2) || f->neighbors.size() >= 2);
+        assert((k3 == 0 && f->neighbors.size() < 3) || f->neighbors.size() >= 3);
+
+        bool need_smoothness_beta = (constraining_lambda_u && in_dir_u) || (!constraining_lambda_u && !in_dir_u);
+
+        float mult = 2 * f->area / mesh.getTotalArea() * (need_smoothness_beta ? CURVATURE_MAGNITUDE_SMOOTHNESS_BETA : 1);
+
+        {
+            int idx = 2*f->index + (constraining_lambda_u ? 0 : 1);
+            int idx1 = 2*(f->neighbors.size() > 0 ? f->neighbors[0]->index : 0) + (constraining_lambda_u ? 0 : 1);
+            int idx2 = 2*(f->neighbors.size() > 1 ? f->neighbors[1]->index : 0) + (constraining_lambda_u ? 0 : 1);
+            int idx3 = 2*(f->neighbors.size() > 2 ? f->neighbors[2]->index : 0) + (constraining_lambda_u ? 0 : 1);
+
+            {
+                std::pair<int, int> p1(idx, idx);
+                addToSparseMap(p1, k * k * mult, m);
+                std::pair<int, int> p2(idx, idx1);
+                addToSparseMap(p2, k * k1 * mult, m);
+                std::pair<int, int> p3(idx, idx2);
+                addToSparseMap(p3, k * k2 * mult, m);
+                std::pair<int, int> p4(idx, idx3);
+                addToSparseMap(p4, k * k3 * mult, m);
+            }
+
+            {
+                std::pair<int, int> p1(idx1, idx);
+                addToSparseMap(p1, k1 * k * mult, m);
+                std::pair<int, int> p2(idx1, idx1);
+                addToSparseMap(p2, k1 * k1 * mult, m);
+                std::pair<int, int> p3(idx1, idx2);
+                addToSparseMap(p3, k1 * k2 * mult, m);
+                std::pair<int, int> p4(idx1, idx3);
+                addToSparseMap(p4, k1 * k3 * mult, m);
+            }
+
+            {
+                std::pair<int, int> p1(idx2, idx);
+                addToSparseMap(p1, k2 * k * mult, m);
+                std::pair<int, int> p2(idx2, idx1);
+                addToSparseMap(p2, k2 * k1 * mult, m);
+                std::pair<int, int> p3(idx2, idx2);
+                addToSparseMap(p3, k2 * k2 * mult, m);
+                std::pair<int, int> p4(idx2, idx3);
+                addToSparseMap(p4, k2 * k3 * mult, m);
+            }
+
+            {
+                std::pair<int, int> p1(idx3, idx);
+                addToSparseMap(p1, k3 * k * mult, m);
+                std::pair<int, int> p2(idx3, idx1);
+                addToSparseMap(p2, k3 * k1 * mult, m);
+                std::pair<int, int> p3(idx3, idx2);
+                addToSparseMap(p3, k3 * k2 * mult, m);
+                std::pair<int, int> p4(idx3, idx3);
+                addToSparseMap(p4, k3 * k3 * mult, m);
+            }
+        }
+    });
 
 }
 
-void HeightFieldSolver::minimizeEMatch(Mesh &mesh, const Sketch &sketch) {
+void HeightFieldSolver::addConstraintsForELambda(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>,double> &m, Eigen::VectorXd &b) {
 
+    mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
+        std::set<int> strokes;
+        if (sketch.checkStrokePoints(f)) {
+            for (int i = 0; i < sketch.getStrokePoints(f).size(); i++) {
+                if (strokes.find(sketch.getStrokePoints(f)[i]->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir.normalized();
+                    addConstraintsForELambdaHelper(mesh, sketch, m, f, b, dir, sketch.getStrokePoints(f)[i]->curvature_value);
+                }
+                strokes.insert(sketch.getStrokePoints(f)[i]->strokeId);
+            }
+        }
 
+        if (sketch.checkStrokeLines(f)) {
+            for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
+                if (strokes.find(sketch.getStrokeLines(f)[i].points.first->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir.normalized();
+                    float curvature_value = (sketch.getStrokeLines(f)[i].points.first->curvature_value +
+                                             sketch.getStrokeLines(f)[i].points.second->curvature_value) / 2.0;
+                    addConstraintsForELambdaHelper(mesh, sketch, m, f, b, dir, curvature_value);
+                }
+                strokes.insert(sketch.getStrokeLines(f)[i].points.first->strokeId);
+            }
+        }
+    });
 
+}
+
+void HeightFieldSolver::addConstraintsForELambdaHelper(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int, int>, double> &m, std::shared_ptr<Face> f,
+                                                       Eigen::VectorXd &b, Eigen::Vector2f d, float curvature_value) {
+
+    Eigen::Vector2f best_u = (f->u.dot(d)) > (-f->u.dot(d)) ? f->u: -f->u;
+    Eigen::Vector2f best_v = (f->v.dot(d)) > (-f->v.dot(d)) ? f->v : -f->v;
+    bool forV = best_v.dot(d) > best_u.dot(d);
+
+    int idx = forV ? 2*f->index + 1 : 2*f->index;
+
+    float mult = 2 * f->area / mesh.getTotalArea() * CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT;
+    std::pair<int, int> x_idx(idx, idx);
+    addToSparseMap(x_idx, mult, m);
+    b(idx) += -mult * curvature_value;
+
+}
+
+void HeightFieldSolver::optimizeHeightField(Mesh &mesh, const Sketch &sketch) {
+
+    int num_vertices = mesh.getNumVertices();
+
+    // get A and b to calculate new u vectors
+    std::vector<Triplet> A_coefficients;
+    SparseMat A(num_vertices, num_vertices);
+    Eigen::VectorXd b = Eigen::VectorXd::Zero(num_vertices);
+    std::map<std::pair<int,int>, double> A_map;
+
+    optimizeHeightFieldHelper(mesh, sketch, A_map, b);
+
+    for (auto it = A_map.begin(); it != A_map.end(); it++) {
+        A_coefficients.push_back(Triplet(it->first.first, it->first.second, it->second));
+    }
+    A.setFromTriplets(A_coefficients.begin(), A_coefficients.end());
+
+    // solve for u vectors
+    A.makeCompressed();
+    Eigen::SparseLU<SparseMat> solver(A);
+    solver.analyzePattern(A);
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+    solver.factorize(A);
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+    Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
+    std::cout << solver.lastErrorMessage() << std::endl;
+    std::cout << solver.info() << std::endl;
+
+    mesh.forEachVertex([&](std::shared_ptr<Vertex> v) {
+        v->height = x(v->index);
+    });
+
+}
+
+void HeightFieldSolver::optimizeHeightFieldHelper(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
+
+    mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
+
+        if (f->neighbors.size() < 3) { return; }
+
+        // add coefficients for E_match
+        {
+            Eigen::Vector2f p = f->circumcenter;
+            Eigen::MatrixXd A = Eigen::MatrixXd::Zero(3, 3);
+            for (int i = 0; i < f->neighbors.size(); i++) {
+                Eigen::Vector2f n = f->neighbors[i]->circumcenter;
+                A(i,0) = std::pow(n.x() - p.x(), 2);
+                A(i,1) = (n.x() - p.x()) * (n.y() - p.y());
+                A(i,2) = std::pow(n.y() - p.y(), 2);
+            }
+
+            auto A_inv = A.inverse();
+            auto G_inv = calculateGInverse(f);
+
+            HeightFieldSolver::Values vs;
+
+            vs.n3 = f->normal()(2);
+
+            vs.G11 = G_inv(0,0); vs.G12 = G_inv(0,1);
+            vs.G21 = G_inv(1,0); vs.G22 = G_inv(1,1);
+
+            vs.a11 = A_inv(0,0); vs.a12 = A_inv(0,1); vs.a13 = A_inv(0,2);
+            vs.a21 = A_inv(1,0); vs.a22 = A_inv(1,1); vs.a23 = A_inv(1,2);
+            vs.a31 = A_inv(2,0); vs.a32 = A_inv(2,1); vs.a33 = A_inv(2,2);
+
+            vs.faces = {f.get(), f->neighbors[0], f->neighbors[1], f->neighbors[2]};
+
+            computeAndAddCoefficientsForEMatch(mesh, sketch, m, b, f, true, true, vs);
+            computeAndAddCoefficientsForEMatch(mesh, sketch, m, b, f, true, false, vs);
+            computeAndAddCoefficientsForEMatch(mesh, sketch, m, b, f, false, true, vs);
+            computeAndAddCoefficientsForEMatch(mesh, sketch, m, b, f, false, false, vs);
+        }
+
+        // add coefficients to E_bdry (i.e. boundary conditions)
+        {
+            addCoefficientsForEBoundary(m, b);
+        }
+
+    });
+
+}
+
+void HeightFieldSolver::computeAndAddCoefficientsForEMatch(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b,
+                                                           std::shared_ptr<Face> f, bool u_direction, bool x_coordinate, HeightFieldSolver::Values &vs) {
+
+    float K_1 = calcK(f.get(), f->vertices[0], 0, vs, u_direction, x_coordinate);
+    float K_2 = calcK(f.get(), f->vertices[1], 0, vs, u_direction, x_coordinate);
+    float K_3 = calcK(f.get(), f->vertices[2], 0, vs, u_direction, x_coordinate);
+
+    float K1_1 = calcK(f->neighbors[0], f->neighbors[0]->vertices[0], 1, vs, u_direction, x_coordinate);
+    float K1_2 = calcK(f->neighbors[0], f->neighbors[0]->vertices[1], 1, vs, u_direction, x_coordinate);
+    float K1_3 = calcK(f->neighbors[0], f->neighbors[0]->vertices[2], 1, vs, u_direction, x_coordinate);
+
+    float K2_1 = calcK(f->neighbors[1], f->neighbors[1]->vertices[0], 2, vs, u_direction, x_coordinate);
+    float K2_2 = calcK(f->neighbors[1], f->neighbors[1]->vertices[1], 2, vs, u_direction, x_coordinate);
+    float K2_3 = calcK(f->neighbors[1], f->neighbors[1]->vertices[2], 2, vs, u_direction, x_coordinate);
+
+    float K3_1 = calcK(f->neighbors[2], f->neighbors[2]->vertices[0], 3, vs, u_direction, x_coordinate);
+    float K3_2 = calcK(f->neighbors[2], f->neighbors[2]->vertices[1], 3, vs, u_direction, x_coordinate);
+    float K3_3 = calcK(f->neighbors[2], f->neighbors[2]->vertices[2], 3, vs, u_direction, x_coordinate);
+
+    std::vector<float> coefficients = {K_1, K_2, K_3, K1_1, K1_2, K1_3, K2_1, K2_2, K2_3, K3_1, K3_2, K3_3};
+    std::vector<std::shared_ptr<Vertex>> vertices = {f->vertices[0], f->vertices[1], f->vertices[2],
+                                                     f->neighbors[0]->vertices[0], f->neighbors[0]->vertices[1], f->neighbors[0]->vertices[2],
+                                                     f->neighbors[1]->vertices[0], f->neighbors[1]->vertices[1], f->neighbors[1]->vertices[2],
+                                                     f->neighbors[2]->vertices[0], f->neighbors[2]->vertices[1], f->neighbors[2]->vertices[2]};
+
+    float constraint_lambda = u_direction ? f->lambda_u : f->lambda_v;
+    Eigen::Vector2f constraint_direction = u_direction ? f->u : f->v;
+    float constraint_coordinate = x_coordinate ? constraint_direction.x() : constraint_direction.y();
+    float constraint = -constraint_lambda * constraint_coordinate;
+
+    addCoefficientsToMapAndVectorForEMatch(coefficients, vertices, m, b, constraint);
+
+}
+
+Eigen::Matrix2f HeightFieldSolver::calculateGInverse(std::shared_ptr<Face> f) {
+    std::shared_ptr<Vertex> i = f->vertices[0];
+    std::shared_ptr<Vertex> j = f->vertices[1];
+    std::shared_ptr<Vertex> k = f->vertices[2];
+
+    Eigen::Matrix2f m;
+    m << 0, -1,
+         1, 0;
+    Eigen::Matrix2f m_reverse;
+    m << 0, 1,
+         -1, 0;
+
+    Eigen::Vector2f ki = i->coords - k->coords;
+    Eigen::Vector2f ki_perp = (m * ki).dot(j->coords - i->coords) > 0 ? m * ki : m_reverse * ki;
+
+    Eigen::Vector2f ij = j->coords - i->coords;
+    Eigen::Vector2f ij_perp = (m * ij).dot(k->coords - j->coords) > 0 ? m * ij : m_reverse * ij;
+
+    Eigen::Vector2f derivs = ((j->height - i->height) * ki_perp / (2.0 * f->area)) + ((k->height - i->height) * ij_perp / 2.0 * f->area);
+
+    Eigen::Matrix2f G;
+    G << (1 + derivs.x() * derivs.x()), (derivs.x() * derivs.y()),
+         (derivs.x() * derivs.y()), (1 + derivs.y() * derivs.y());
+
+    return G.inverse();
+}
+
+float HeightFieldSolver::calcK(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs,
+                               bool u_direction, bool x_coordinate) {
+    Eigen::Vector2f w = u_direction ? f->u : f->v;
+    float coefficient = x_coordinate ? (w.x() * calcdN(f,v,face_idx,vs,1) + w.y() * calcdN(f,v,face_idx,vs,2)) :
+                                       (w.x() * calcdN(f,v,face_idx,vs,3) + w.y() * calcdN(f,v,face_idx,vs,4));
+    return coefficient;
+}
+
+float HeightFieldSolver::calcdN(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs, int N_idx) {
+    switch (N_idx) {
+        case 1: return (vs.G11 * calcdAlpha(f,v,face_idx,vs) + vs.G21 * calcdBeta(f,v,face_idx,vs)) * -vs.n3;
+        case 2: return (vs.G12 * calcdAlpha(f,v,face_idx,vs) + vs.G22 * calcdBeta(f,v,face_idx,vs)) * -vs.n3;
+        case 3: return (vs.G11 * calcdBeta(f,v,face_idx,vs) + vs.G21 * calcdGamma(f,v,face_idx,vs)) * -vs.n3;
+        case 4: return (vs.G12 * calcdBeta(f,v,face_idx,vs) + vs.G22 * calcdGamma(f,v,face_idx,vs)) * -vs.n3;
+    }
+}
+
+float HeightFieldSolver::calcdAlpha(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs) {
+    return vs.a11 * calcdB(f,v,face_idx,1) + vs.a12 * calcdB(f,v,face_idx,2) + vs.a13 * calcdB(f,v,face_idx,3);
+}
+
+float HeightFieldSolver::calcdBeta(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs) {
+    return vs.a21 * calcdB(f,v,face_idx,1) + vs.a22 * calcdB(f,v,face_idx,2) + vs.a23 * calcdB(f,v,face_idx,3);
+}
+
+float HeightFieldSolver::calcdGamma(Face* f, std::shared_ptr<Vertex> v, int face_idx, Values &vs) {
+    return vs.a31 * calcdB(f,v,face_idx,1) + vs.a32 * calcdB(f,v,face_idx,2) + vs.a33 * calcdB(f,v,face_idx,3);
+}
+
+float HeightFieldSolver::calcdB(Face* f, std::shared_ptr<Vertex> v, int face_idx, int B_idx) {
+    if (face_idx != 0 && face_idx != B_idx) { return 0; }
+    Face *n = f->neighbors[B_idx - 1]; // B_idx == 1 + neighbor_index
+    return (n->circumcenter.x() - f->circumcenter.x()) * calcdG(f,v,face_idx,true) +
+           (n->circumcenter.y() - f->circumcenter.y()) * calcdG(f,v,face_idx,false);
+}
+
+float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx, bool x_coordinate) {
+    std::shared_ptr<Vertex> i;
+    std::shared_ptr<Vertex> j;
+    std::shared_ptr<Vertex> k;
+    if (v == f->vertices[0]) { i = v; j = f->vertices[1]; k = f->vertices[2]; }
+    if (v == f->vertices[1]) { i = v; j = f->vertices[0]; k = f->vertices[2]; }
+    if (v == f->vertices[2]) { i = v; j = f->vertices[0]; k = f->vertices[1]; }
+
+    Eigen::Matrix2f m;
+    m << 0, -1,
+         1, 0;
+    Eigen::Matrix2f m_reverse;
+    m << 0, 1,
+         -1, 0;
+
+    Eigen::Vector2f ki = i->coords - k->coords;
+    Eigen::Vector2f ki_perp = (m * ki).dot(j->coords - i->coords) > 0 ? m * ki : m_reverse * ki;
+
+    Eigen::Vector2f ij = j->coords - i->coords;
+    Eigen::Vector2f ij_perp = (m * ij).dot(k->coords - j->coords) > 0 ? m * ij : m_reverse * ij;
+
+    float C_ik = x_coordinate ? (ki_perp.x() / (2.0 * f->area)) : (ki_perp.y() / (2.0 * f->area));
+    float C_ji = x_coordinate ? (ij_perp.x() / (2.0 * f->area)) : (ij_perp.y() / (2.0 * f->area));
+
+    return (face_idx == 0) ? (C_ik + C_ji) : -(C_ik + C_ji);
+}
+
+void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
+                                                       std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b, float constraint) {
+
+    for (int vertex_idx = 0; vertex_idx < coefficients.size(); vertex_idx++) {
+        auto v = vertices[vertex_idx]; // the vertex that the with respect to which the derivative was taken
+        float kv = coefficients[vertex_idx];
+        b(v->index) += constraint * kv;
+        for (int neighbor_idx = 0; neighbor_idx < coefficients.size(); neighbor_idx++) {
+            auto n = vertices[neighbor_idx];
+            float kn = coefficients[neighbor_idx];
+            std::pair<int,int> p(v->index, n->index);
+            addToSparseMap(p, 2 * kv * kn, m);
+        }
+    }
+
+}
+
+void HeightFieldSolver::addCoefficientsForEBoundary(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
+    mesh.forEachBoundaryVertex([&](std::shared_ptr<const Vertex> v) {
+
+    });
 }

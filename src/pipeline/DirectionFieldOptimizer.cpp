@@ -8,40 +8,6 @@ void DirectionFieldOptimizer::optimizeBendFieldEnergy(Mesh &mesh, Sketch &sketch
     }
 }
 
-void DirectionFieldOptimizer::assignDirectionFieldToConstraints(Mesh &mesh, Sketch &sketch) {
-    auto &concave_strokes = sketch.getConcaveStrokes();
-    auto &convex_strokes = sketch.getConvexStrokes();
-
-    for (int stroke_idx = 0; stroke_idx < concave_strokes.size(); stroke_idx++) {
-        assignDirectionFieldToConstraintsHelper(mesh, sketch, concave_strokes[stroke_idx]);
-    }
-
-    for (int stroke_idx = 0; stroke_idx < convex_strokes.size(); stroke_idx++) {
-        assignDirectionFieldToConstraintsHelper(mesh, sketch, convex_strokes[stroke_idx]);
-    }
-}
-
-void DirectionFieldOptimizer::assignDirectionFieldToConstraintsHelper(Mesh &mesh, Sketch &sketch, Sketch::Stroke &stroke) {
-    int v_count = 0;
-    int u_count = 0;
-    int num_points = Sketch::getLengthOfStrokeInPoints(stroke);
-    for (int i = 0; i < num_points; i++) {
-        std::shared_ptr<Sketch::StrokePoint> point = Sketch::getStrokePointByFlattenedIndex(stroke, i);
-        Eigen::Vector2f d = point->coordinates;
-        auto f = point->triangle;
-        Eigen::Vector2f best_u = (f->u.normalized().dot(d)) > (-f->u.normalized().dot(d)) ? f->u.normalized() : -f->u.normalized();
-        Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
-        if (best_u.dot(d) > best_v.dot(d)) { u_count++; }
-        else { v_count++; }
-    }
-    Sketch::StrokePoint::DirectionField field = (v_count > u_count) ? Sketch::StrokePoint::DirectionField::V : Sketch::StrokePoint::DirectionField::U;
-    std::cout << ((field == Sketch::StrokePoint::DirectionField::V)?  "V" : "U") << std::endl;
-    for (int i = 0; i < num_points; i++) {
-        std::shared_ptr<Sketch::StrokePoint> point = Sketch::getStrokePointByFlattenedIndex(stroke, i);
-        point->directionField = field;
-    }
-}
-
 void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &mesh, const Sketch &sketch) {
 
     int num_faces = mesh.getNumTriangles();
@@ -105,17 +71,24 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
 void DirectionFieldOptimizer::addCoefficientsForStrokeConstraints(Mesh &mesh, const Sketch &sketch, bool coefficientsForV,
                                                                   std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
+        std::set<int> strokes;
         if (sketch.checkStrokePoints(f)) {
             for (int i = 0; i < sketch.getStrokePoints(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir.normalized();
-                addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir, sketch.getStrokePoints(f)[i]->directionField);
+                if (strokes.find(sketch.getStrokePoints(f)[i]->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir.normalized();
+                    addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir);
+                }
+                strokes.insert(sketch.getStrokePoints(f)[i]->strokeId);
             }
         }
 
         if (sketch.checkStrokeLines(f)) {
             for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
-                Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir.normalized();
-                addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir, sketch.getStrokeLines(f)[i].points.first->directionField);
+                if (strokes.find(sketch.getStrokeLines(f)[i].points.first->strokeId) == strokes.end()) {
+                    Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir.normalized();
+                    addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir);
+                }
+                strokes.insert(sketch.getStrokeLines(f)[i].points.first->strokeId);
             }
         }
     });
@@ -123,8 +96,7 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraints(Mesh &mesh, co
 
 void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &mesh, const Sketch &sketch, bool coefficientsForV,
                                                                         std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b,
-                                                                        std::shared_ptr<Face> f, const Eigen::Vector2f d,
-                                                                        Sketch::StrokePoint::DirectionField directionFieldConstrained) {
+                                                                        std::shared_ptr<Face> f, const Eigen::Vector2f d) {
     // We need to figure out if this constraint is supposed to be for u or for v.
     // The constraint is supposed to be for u if f->u or -f->u is closer to the
     // constraint than both of f->v and -f->v.

@@ -235,19 +235,23 @@ Sketch::Sketch(const SketchData &data) {
         boundary_strokes.push_back(std::move(segment));
     }
 
+    int strokeId = 0;
     for (int line_idx = 0; line_idx < data.convex.size(); line_idx++) {
-        Stroke segment = addBendingStrokeFromScribble(data.convex[line_idx]);
+        Stroke segment = addBendingStrokeFromScribble(data.convex[line_idx], strokeId);
         convex_strokes.push_back(std::move(segment));
+        strokeId++;
     }
 
     for (int line_idx = 0; line_idx < data.concave.size(); line_idx++) {
-        Stroke segment = addBendingStrokeFromScribble(data.concave[line_idx]);
+        Stroke segment = addBendingStrokeFromScribble(data.concave[line_idx], strokeId);
         concave_strokes.push_back(std::move(segment));
+        strokeId++;
     }
 }
 
-Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s) {
+Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s, int id) {
     Stroke stroke;
+    stroke.id = id;
     float curr_length = 0;
     bool first_point_of_segment = true;
     bool add_segment_to_stroke = false;
@@ -272,6 +276,7 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
 
         std::shared_ptr<StrokePoint> point = std::make_shared<StrokePoint>();
         point->coordinates = s[i];
+        point->strokeId = id;
         if (!first_point_of_segment) {
             curr_length += (s[i] - s[i-1]).norm();
         }
