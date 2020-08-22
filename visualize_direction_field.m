@@ -103,3 +103,13 @@ C = textscan(fileID, "%f %f");
 xs = cell2mat(C(1,1));
 ys = -cell2mat(C(1,2));
 scatter(xs,ys);
+
+figure(8);
+fileID = fopen("constraints.txt");
+C = textscan(fileID, "%f %f %f %f");
+xs = cell2mat(C(1,1));
+ys = -cell2mat(C(1,2));
+u1 = cell2mat(C(1,3));
+u2 = -cell2mat(C(1,4));
+quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "on");
+

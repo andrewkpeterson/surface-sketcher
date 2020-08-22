@@ -75,6 +75,7 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraints(Mesh &mesh, co
         if (sketch.checkStrokePoints(f)) {
             for (int i = 0; i < sketch.getStrokePoints(f).size(); i++) {
                 if (strokes.find(sketch.getStrokePoints(f)[i]->strokeId) == strokes.end()) {
+                    auto point = sketch.getStrokePoints(f)[i];
                     Eigen::Vector2f dir = sketch.getStrokePoints(f)[i]->tangent_dir.normalized();
                     addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir);
                 }
@@ -85,6 +86,7 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraints(Mesh &mesh, co
         if (sketch.checkStrokeLines(f)) {
             for (int i = 0; i < sketch.getStrokeLines(f).size(); i++) {
                 if (strokes.find(sketch.getStrokeLines(f)[i].points.first->strokeId) == strokes.end()) {
+                    auto point = sketch.getStrokeLines(f)[i];
                     Eigen::Vector2f dir = sketch.getStrokeLines(f)[i].dir.normalized();
                     addCoefficientsForStrokeConstraintsHelper(mesh, sketch, coefficientsForV, m, b, f, dir);
                 }
@@ -100,13 +102,24 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
     // We need to figure out if this constraint is supposed to be for u or for v.
     // The constraint is supposed to be for u if f->u or -f->u is closer to the
     // constraint than both of f->v and -f->v.
-    Eigen::Vector2f best_u = (f->u.normalized().dot(d)) > (-f->u.normalized().dot(d)) ? f->u.normalized() : -f->u.normalized();
-    Eigen::Vector2f best_v = (f->v.normalized().dot(d)) > (-f->v.normalized().dot(d)) ? f->v.normalized() : -f->v.normalized();
+    Eigen::Vector2f smooth_u(0,0);
+    Eigen::Vector2f smooth_v(0,0);
+    for (int i = 0; i < f->neighbors.size(); i++) {
+        smooth_u += f->neighbors[i]->u;
+        smooth_v += f->neighbors[i]->v;
+    }
+    smooth_u = smooth_u / (f->neighbors.size() + 1);
+    smooth_v = smooth_v / (f->neighbors.size() + 1);
+    Eigen::Vector2f best_u = (smooth_u.normalized().dot(d) > 0) ? smooth_u.normalized() : -smooth_u.normalized();
+    Eigen::Vector2f best_v = (smooth_v.normalized().dot(d) > 0) ? smooth_v.normalized() : -smooth_v.normalized();
     bool use_constraint = (coefficientsForV && (best_v.dot(d) > best_u.dot(d))) ||
                           (!coefficientsForV && (best_u.dot(d) > best_v.dot(d)));
 
 
     if (use_constraint) {
+        if (coefficientsForV && std::abs(d.x()) > std::abs(d.y())) {
+            std::cout << "stop" << std::endl;
+        }
         // Here, we are creating an equation of the form Ax + b = 0. Note that the Eigen solver actually solves Wx = z, so
         // we pass -b into the solver. The modified constraint is the constraint or the negative of the constraint,
         // whichever is closer to the vector being constrained. To create the equation of the form Ax + b, we want to add

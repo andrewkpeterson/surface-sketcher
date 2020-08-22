@@ -54,7 +54,7 @@ private:
     static float calcdBeta(Face *f, std::shared_ptr<Vertex> v, int face_idx, Values &vs);
     static float calcdGamma(Face *f, std::shared_ptr<Vertex> v, int face_idx, Values &vs);
     static float calcdB(Face *f, std::shared_ptr<Vertex> v, int face_idx, int B_idx);
-    static float calcdG(Face *f, std::shared_ptr<Vertex> v, int face_idx, bool x_coordinate);
+    static float calcdG(Face *f, std::shared_ptr<Vertex> v, int face_idx, bool deriv_wrt_x);
     static void addCoefficientsToMapAndVectorForEMatch(std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
                                                        std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b, float constraint);
     static void addCoefficientsForEBoundary(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
@@ -79,7 +79,7 @@ private:
     static constexpr float CURVATURE_MAGNITUDE_SMOOTHNESS_BETA = .01;
     static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1;
 
-    static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 10e6; // omega_0, changes for different cases
+    static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 1e6; // omega_0, changes for different cases
     static constexpr float BOUNDARY_REGULARITY_CONSTRAINT_WEIGHT = 1; // omega_1, same for all cases
     static constexpr float BOUNDARY_HEIGHT = 0;
 };

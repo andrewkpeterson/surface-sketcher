@@ -4,17 +4,45 @@
 #include "src/pipeline/Mesh.h"
 #include <QFile>
 #include <QTextStream>
+#include "src/pipeline/Sketch.h"
 
 class OBJWriter
 {
 public:
+
+    static void writeConstraints(Sketch &sketch) {
+        QFile discontinuities("constraints.txt");
+        if (discontinuities.open(QIODevice::ReadWrite | QFile::Truncate)) {
+            QTextStream stream(&discontinuities);
+            char buf[512];
+
+            for (int i = 0; i < sketch.getConvexStrokes().size(); i++) {
+                int size = sketch.getLengthOfStrokeInPoints(sketch.getConvexStrokes()[i]);
+                for (int j = 0; j < size; j++) {
+                    auto point = sketch.getStrokePointByFlattenedIndex(sketch.getConvexStrokes()[i], j);
+                    std::sprintf(buf, "%f %f %f %f", point->coordinates.x(), point->coordinates.y(), point->tangent_dir.x(), point->tangent_dir.y());
+                    stream << buf << endl;
+                }
+            }
+
+            for (int i = 0; i < sketch.getConcaveStrokes().size(); i++) {
+                int size = sketch.getLengthOfStrokeInPoints(sketch.getConcaveStrokes()[i]);
+                for (int j = 0; j < size; j++) {
+                    auto point = sketch.getStrokePointByFlattenedIndex(sketch.getConcaveStrokes()[i], j);
+                    std::sprintf(buf, "%f %f %f %f", point->coordinates.x(), point->coordinates.y(), point->tangent_dir.x(), point->tangent_dir.y());
+                    stream << buf << endl;
+                }
+            }
+        }
+    }
+
     static void writeOBJ(Mesh &mesh, std::string obj_file, std::string direction_field_file) {
         QFile file(obj_file.c_str());
         if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
             QTextStream stream(&file);
             char buf[512];
             auto func1 = [&] (std::shared_ptr<Vertex> v) {
-                std::sprintf(buf, "v %f %f %f", v->coords.x(), v->coords.y(), -2000*v->height);
+                std::sprintf(buf, "v %f %f %f", v->coords.x(), v->coords.y(), v->height);
                 stream << buf << endl;
             };
 

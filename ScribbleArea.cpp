@@ -44,10 +44,15 @@ bool ScribbleArea::openImage(const QString &fileName)
             curr_vec.push_back(Eigen::Vector2f(x,y));
         } else if (curr_vec.size() > 0) {
             data.boundary.push_back(curr_vec);
+            curr_vec = std::vector<Eigen::Vector2f>();
         }
         line = in.readLine();
     }
 
+    if (curr_vec.size() > 0) {
+        data.boundary.push_back(curr_vec);
+    }
+    curr_vec = std::vector<Eigen::Vector2f>();
     while (line != "concave") {
         if (line.compare("convex") != 0 && line.compare("") != 0) {
             float x;
@@ -56,10 +61,15 @@ bool ScribbleArea::openImage(const QString &fileName)
             curr_vec.push_back(Eigen::Vector2f(x,y));
         } else if (curr_vec.size() > 0) {
             data.convex.push_back(curr_vec);
+            curr_vec = std::vector<Eigen::Vector2f>();
         }
         line = in.readLine();
     }
 
+    if (curr_vec.size() > 0) {
+        data.convex.push_back(curr_vec);
+    }
+    curr_vec = std::vector<Eigen::Vector2f>();
     while (!in.atEnd()) {
         if (line.compare("concave") != 0 && line.compare("") != 0) {
             float x;
@@ -68,8 +78,12 @@ bool ScribbleArea::openImage(const QString &fileName)
             curr_vec.push_back(Eigen::Vector2f(x,y));
         } else if (curr_vec.size() > 0) {
             data.concave.push_back(curr_vec);
+            curr_vec = std::vector<Eigen::Vector2f>();
         }
         line = in.readLine();
+    }
+    if (curr_vec.size() > 0) {
+        data.concave.push_back(curr_vec);
     }
 
     file.close();

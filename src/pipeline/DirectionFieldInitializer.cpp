@@ -139,11 +139,13 @@ void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVector(Mesh 
 
         assert(vectors.find(f->index) == vectors.end());
         vectors[f->index] = std::pair(dir1.normalized(), dir2.normalized());
+        f->u = dir1.normalized();
+        f->v = dir2.normalized();
     });
 
-    assignVectors(m, vectors);
-    fixSignOfDirectionVectors(m, true);
-    fixSignOfDirectionVectors(m, false);
+    //assignVectors(m, vectors);
+    //fixSignOfDirectionVectors(m, true);
+    //fixSignOfDirectionVectors(m, false);
 }
 
 void DirectionFieldInitializer::assignVectors(Mesh &m, std::map<int, std::pair<Eigen::Vector2f, Eigen::Vector2f>> vectors) {

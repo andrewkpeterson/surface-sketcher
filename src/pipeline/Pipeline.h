@@ -61,6 +61,10 @@ public:
         sketch.mapIntersectedFacesToStrokes(mesh);
         std::cout << "DONE" << std::endl;
 
+        std::cout << "Writing constraints to file" << std::endl;
+        OBJWriter::writeConstraints(sketch);
+        std::cout << "DONE" << std::endl;
+
         std::cout << "Writing result mesh to file" << std::endl;
         OBJWriter::writeOBJ(mesh, "result.obj", "optimized.txt");
         std::cout << "DONE" << std::endl;
@@ -74,7 +78,7 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Optimizing BendField energy of curvature direction field..." << std::endl;
-        //DirectionFieldOptimizer::optimizeBendFieldEnergy(mesh, sketch);
+        DirectionFieldOptimizer::optimizeBendFieldEnergy(mesh, sketch);
         std::cout << "DONE" << std::endl;
 
         std::cout << "Writing result mesh to file" << std::endl;

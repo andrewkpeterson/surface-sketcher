@@ -26,6 +26,9 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
         minimizeELambda(mesh, sketch);
         optimizeHeightField(mesh, sketch);
         std::cout << "completed an iteration" << std::endl;
+        char buf[50];
+        std::sprintf(buf, "iteration%d.obj", i);
+        OBJWriter::writeOBJ(mesh,buf,"directions.txt");
     }
 
 }
@@ -147,7 +150,8 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             //options.minimizer_progress_to_stdout = true;
             Solver::Summary summary;
             Solve(options, &problem, &summary);
-            std::cout << (convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
+            std::cout << (convex ? "convex " : "concave ") << "curvature at " << "(" << segment[center_idx]->coords3d().x() << "," << segment[center_idx]->coords3d().y() << "): " <<
+                         (convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
 
             // Update curvature values for segment and points. Remember that we are measuring normal curvature!
             // Convex sections (i.e. "Hills") have negative normal curvature because the unit tangent vector
@@ -194,6 +198,7 @@ void HeightFieldSolver::minimizeELambda(Mesh &mesh, const Sketch &sketch) {
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
     //std::cout << solver.lastErrorMessage() << std::endl;
     //std::cout << solver.info() << std::endl;
+    //std::cout << x << std::endl;
 
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
         f->lambda_u = x(2*f->index);
@@ -221,6 +226,7 @@ void HeightFieldSolver::addCoefficientsForELambda(Mesh &mesh, const Sketch &sket
         float k3 = -(q.x() * A_pinv(2,0) + q.y() * A_pinv(2,1));
         if (std::isnan(k) || std::isinf(k) || std::isnan(k1) || std::isinf(k1) || std::isnan(k2) || std::isinf(k2) || std::isnan(k3) || std::isinf(k3)) {
             std::cout << "stop" << std::endl;
+            assert(false);
         }
 
         assert((k1 == 0 && f->neighbors.size() < 1) || f->neighbors.size() >= 1);
@@ -356,6 +362,7 @@ void HeightFieldSolver::optimizeHeightField(Mesh &mesh, const Sketch &sketch) {
     solver.factorize(A);
     std::cout << solver.lastErrorMessage() << std::endl;
     std::cout << solver.info() << std::endl;
+    //std::cout << b << std::endl;
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
     std::cout << solver.lastErrorMessage() << std::endl;
     std::cout << solver.info() << std::endl;
@@ -482,10 +489,10 @@ float HeightFieldSolver::calcK(Face* f, std::shared_ptr<Vertex> v, int face_idx,
 
 float HeightFieldSolver::calcdN(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs, int N_idx) {
     switch (N_idx) {
-        case 1: return (vs.G11 * calcdAlpha(f,v,face_idx,vs) + vs.G21 * calcdBeta(f,v,face_idx,vs)) * -vs.n3;
-        case 2: return (vs.G12 * calcdAlpha(f,v,face_idx,vs) + vs.G22 * calcdBeta(f,v,face_idx,vs)) * -vs.n3;
-        case 3: return (vs.G11 * calcdBeta(f,v,face_idx,vs) + vs.G21 * calcdGamma(f,v,face_idx,vs)) * -vs.n3;
-        case 4: return (vs.G12 * calcdBeta(f,v,face_idx,vs) + vs.G22 * calcdGamma(f,v,face_idx,vs)) * -vs.n3;
+        case 1: return -(vs.G11 * calcdAlpha(f,v,face_idx,vs) + vs.G21 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
+        case 2: return -(vs.G12 * calcdAlpha(f,v,face_idx,vs) + vs.G22 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
+        case 3: return -(vs.G11 * calcdBeta(f,v,face_idx,vs) + vs.G21 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
+        case 4: return -(vs.G12 * calcdBeta(f,v,face_idx,vs) + vs.G22 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
     }
 }
 
@@ -508,7 +515,7 @@ float HeightFieldSolver::calcdB(Face* f, std::shared_ptr<Vertex> v, int face_idx
            (n->centroid.y() - f->centroid.y()) * calcdG(f,v,face_idx,false);
 }
 
-float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx, bool x_coordinate) {
+float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx, bool deriv_wrt_x) {
     Face* face;
     if (face_idx == 0) {
         face = f;
@@ -539,8 +546,8 @@ float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx
     Eigen::Vector2f ij = j->coords - i->coords;
     Eigen::Vector2f ij_perp = (m * ij).dot(k->coords - j->coords) > 0 ? m * ij : m_reverse * ij;
 
-    float C_ik = x_coordinate ? (ki_perp.x() / (2.0 * face->area)) : (ki_perp.y() / (2.0 * face->area));
-    float C_ji = x_coordinate ? (ij_perp.x() / (2.0 * face->area)) : (ij_perp.y() / (2.0 * face->area));
+    float C_ik = deriv_wrt_x ? (ki_perp.x() / (2.0 * face->area)) : (ki_perp.y() / (2.0 * face->area));
+    float C_ji = deriv_wrt_x ? (ij_perp.x() / (2.0 * face->area)) : (ij_perp.y() / (2.0 * face->area));
 
     return (face_idx == 0) ? (C_ik + C_ji) : -(C_ik + C_ji);
 }
@@ -551,13 +558,14 @@ void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(std::vector<float
     for (int vertex_idx = 0; vertex_idx < coefficients.size(); vertex_idx++) {
         auto v = vertices[vertex_idx]; // the vertex that the with respect to which the derivative was taken
         float kv = coefficients[vertex_idx];
-        b(v->index) += constraint * kv;
+        b(v->index) += 2 * constraint * kv;
         for (int neighbor_idx = 0; neighbor_idx < coefficients.size(); neighbor_idx++) {
             auto n = vertices[neighbor_idx];
             float kn = coefficients[neighbor_idx];
             std::pair<int,int> p(v->index, n->index);
             if (std::isnan(2 * kv * kn) || std::isinf(2 * kv * kn)) {
                 std::cout << "stop" << std::endl;
+                assert(false);
             }
             //std::cout << 2 * kv * kn << std::endl;
             addToSparseMap(p, 2 * kv * kn, m);
@@ -583,7 +591,7 @@ void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const
     std::set<std::shared_ptr<Vertex>> visited_vertices;
     std::map<std::shared_ptr<Vertex>, int> finished_vertices;
     int count = 0;
-    while (count < edge_vertices.size() - 1) {
+    while (count < edge_vertices.size()) {
         int count_at_beginning = count;
         for (auto it = edge_faces.begin(); it != edge_faces.end(); it++) {
             Face *middle_face = *it;
@@ -672,8 +680,9 @@ void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const
             }
             visited_vertices.insert(middle_vertex);
         }
-        if (count - count_at_beginning) {
+        if (count - count_at_beginning == 0) {
             std::cout << "WARNING: we are missing some boundary vertices in the reguarlity constraint" << std::endl;
+            std::cout << count << " out of " << edge_vertices.size() << std::endl;
             break;
         }
     }
