@@ -13,26 +13,17 @@ public:
         if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
             QTextStream stream(&file);
             char buf[512];
-            auto func1 = [&] (std::shared_ptr<Face> f) {
-                if (f->valid) {
-                    std::sprintf(buf, "v %f %f %f", f->vertices[0]->coords.x(), f->vertices[0]->coords.y(), f->vertices[0]->height);
-                    stream << buf << endl;
-                    std::sprintf(buf, "v %f %f %f", f->vertices[1]->coords.x(), f->vertices[1]->coords.y(), f->vertices[1]->height);
-                    stream << buf << endl;
-                    std::sprintf(buf, "v %f %f %f", f->vertices[2]->coords.x(), f->vertices[2]->coords.y(), f->vertices[2]->height);
-                }
+            auto func1 = [&] (std::shared_ptr<Vertex> v) {
+                std::sprintf(buf, "v %f %f %f", v->coords.x(), v->coords.y(), -2000*v->height);
+                stream << buf << endl;
             };
 
-            int count = 1;
             auto func2 = [&] (std::shared_ptr<Face> f) {
-                if (f->valid) {
-                    std::sprintf(buf, "f %d//%d %d//%d %d//%d", count, count, count + 1, count + 1, count + 2, count + 2);
-                    stream << buf << endl;
-                    count += 3;
-                }
+                std::sprintf(buf, "f %d %d %d", f->vertices[0]->index + 1, f->vertices[1]->index + 1, f->vertices[2]->index + 1);
+                stream << buf << endl;
             };
 
-            mesh.forEachTriangle(func1);
+            mesh.forEachVertex(func1);
             mesh.forEachTriangle(func2);
         }
 
@@ -64,6 +55,7 @@ public:
             mesh.forEachTriangle(func4);
         }
 
+        /*
         QFile z1z2("z1z2.txt");
         if (z1z2.open(QIODevice::ReadWrite | QFile::Truncate)) {
             QTextStream stream(&z1z2);
@@ -86,6 +78,19 @@ public:
             };
 
             mesh.forEachTriangle(func4);
+        }
+        */
+
+        QFile edges("edge_vertices.txt");
+        if (edges.open(QIODevice::ReadWrite | QFile::Truncate)) {
+            QTextStream stream(&edges);
+            char buf[512];
+            auto func4 = [&] (std::shared_ptr<const Vertex> v) {
+                std::sprintf(buf, "%f %f", v->coords.x(), v->coords.y());
+                stream << buf << endl;
+            };
+
+            mesh.forEachBoundaryVertex(func4);
         }
     }
 };

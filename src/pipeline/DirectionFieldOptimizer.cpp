@@ -126,11 +126,12 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
 void DirectionFieldOptimizer::addCoefficientsForBendFieldEnergy(Mesh &mesh, const Sketch &sketch, bool coefficientsForV,
                                                                 std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
-        Eigen::Vector2f p = f->circumcenter;
+        Eigen::Vector2f p = f->centroid;
         Eigen::MatrixXd A = Eigen::MatrixXd::Zero(2, 3);
+        // TODO: figure out if circumcenter is better!
         for (int i = 0; i < f->neighbors.size(); i++) {
-            A(0,i) = f->neighbors[i]->circumcenter.x() - p.x();
-            A(1,i) = f->neighbors[i]->circumcenter.y() - p.y();
+            A(0,i) = f->neighbors[i]->centroid.x() - p.x();
+            A(1,i) = f->neighbors[i]->centroid.y() - p.y();
         }
 
         // If we are optimizing the v direction field, we multiply the jacobian of v with

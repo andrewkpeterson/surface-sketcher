@@ -58,6 +58,12 @@ private:
     static void addCoefficientsToMapAndVectorForEMatch(std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
                                                        std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b, float constraint);
     static void addCoefficientsForEBoundary(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b);
+    static void addCoefficientsForRegualrityConstraint(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m);
+    static void addCoefficientsForRegualrityConstraintHelper(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m,
+                                                             std::shared_ptr<Vertex> v1, std::shared_ptr<Vertex> v2);
+    static bool faceContainsEdgeVertex(Mesh &mesh, Face *f);
+    static std::shared_ptr<Vertex> getEdgeVertexNotInSet(Mesh &mesh, Face *f, const std::set<std::shared_ptr<Vertex> > &set);
+
 
     static inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
         if (m.find(p) == m.end()) {
@@ -72,6 +78,10 @@ private:
 
     static constexpr float CURVATURE_MAGNITUDE_SMOOTHNESS_BETA = .01;
     static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1;
+
+    static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 10e6; // omega_0, changes for different cases
+    static constexpr float BOUNDARY_REGULARITY_CONSTRAINT_WEIGHT = 1; // omega_1, same for all cases
+    static constexpr float BOUNDARY_HEIGHT = 0;
 };
 
 #endif // HEIGHTFIELDSOLVER_H

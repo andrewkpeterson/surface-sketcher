@@ -81,8 +81,9 @@ void removeArtifacts(CDT &cdt, std::map<Face_handle, FaceInfo2> &domain_info) {
 }
 
 
-void Triangulate::triangulate(Mesh &mesh, const Sketch &sketch) {
+void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
     Polygon_2 polygon;
+    std::vector<Eigen::Vector2f> boundary_points;
 
     // turn the boundary lines into a polygon that we can pass to CGAL
     // TODO: Process lines so that the entire boundary is a single line with no
@@ -113,11 +114,19 @@ void Triangulate::triangulate(Mesh &mesh, const Sketch &sketch) {
 
         for (int j = 0; j < sketch.getBoundaryStrokes()[i].size() - 2; j++) {
             polygon.push_back(Point(sketch.getBoundaryStrokes()[i][j].x(), sketch.getBoundaryStrokes()[i][j].y()));
+            boundary_points.push_back(sketch.getBoundaryStrokes()[i][j]);
         }
 
 
         polygon.push_back(Point(best_endpoint.x(), best_endpoint.y()));
+        boundary_points.push_back(best_endpoint);
     }
+
+    float length = 0;
+    for (int i = 0; i < boundary_points.size() - 1; i++) {
+        length += (boundary_points[i] - boundary_points[i+1]).norm();
+    }
+    sketch.setBoundaryLength(length);
 
     /*
     // test polygon

@@ -385,6 +385,10 @@ void Sketch::mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> 
             };
 
             mesh.forEachTriangle(func);
+            if (point->triangle == nullptr) {
+                std::cout << "WARNING: there is a bending stroke point that is not inside of a triangle!" << std::endl;
+                // TODO: do something better about this
+            }
         }
     }
 }

@@ -8,6 +8,7 @@
 #include <tuple>
 
 class Mesh;
+struct Face;
 
 struct Vertex {
     int index;
@@ -31,19 +32,11 @@ struct Face {
     std::vector<Face*> neighbors; // use raw pointers to neighbors to avoid shared ptr cycles
     std::vector<std::shared_ptr<Vertex>> vertices;
 
-    Eigen::Vector2f u = Eigen::Vector2f(0,0);
-    Eigen::Vector2f v = Eigen::Vector2f(0,0);
+    Eigen::Vector2f u = Eigen::Vector2f::Random().normalized(); //Eigen::Vector2f(0,0);
+    Eigen::Vector2f v = Eigen::Vector2f::Random().normalized(); //Eigen::Vector2f(0,0);
     float lambda_u = 0;
     float lambda_v = 0;
-    bool initial_dir1_for_u = false;
-    int dir1_votes_for_u = 0;
-    int dir2_votes_for_u = 0;
     bool discontinuity = false;
-    Eigen::Vector2f z1 = Eigen::Vector2f(0,0);
-    Eigen::Vector2f z2 = Eigen::Vector2f(0,0);
-    Eigen::Vector2f a = Eigen::Vector2f(0,0);
-    Eigen::Vector2f b = Eigen::Vector2f(0,0);
-
 
     Eigen::Vector3f normal() {
         Eigen::Vector3f n = (vertices[0]->coords3d() - vertices[1]->coords3d()).cross(vertices[0]->coords3d() - vertices[2]->coords3d()).normalized();
@@ -62,7 +55,6 @@ public:
     void forEachVertex(const std::function<void(std::shared_ptr<Vertex>)> &func);
 
     void forEachTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
-    void forEachBoundaryTriangle(const std::function<void(std::shared_ptr<const Face>)> &func) const;
     void forEachPairOfNeighboringTriangles(const std::function<void(const Face*, const Face*)> &func) const;
     void forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
     void forEachBoundaryVertex(const std::function<void(std::shared_ptr<const Vertex>)> &func) const;
@@ -75,7 +67,8 @@ public:
 
     std::shared_ptr<const Face> getConstFace(int i) { return index2face[i]; }
     std::shared_ptr<Face> getFace(int i) { return index2face[i]; }
-    const std::unordered_set<std::shared_ptr<Face>> &getEdgeFaces() { return edge_faces; }
+    const std::set<Face*> &getEdgeFaces() { return edge_faces; }
+    const std::set<std::shared_ptr<Vertex>> &getEdgeVertices() const { return edge_vertices; }
 
     static float calcTriangleArea(const Face_handle f);
     static float calcTriangleArea(const Eigen::Vector2f v1, const Eigen::Vector2f v2, const Eigen::Vector2f v3);
@@ -85,13 +78,16 @@ private:
 
     CDT cdt; // constrained delaunay triangulation
 
-    std::unordered_map<int, std::shared_ptr<Face>> index2face;
-    std::unordered_map<int, std::shared_ptr<Vertex>> index2vertex;
-    std::unordered_set<std::shared_ptr<Face>> edge_faces;
+    std::map<int, std::shared_ptr<Face>> index2face;
+    std::map<int, std::shared_ptr<Vertex>> index2vertex;
+    std::set<Face*> edge_faces;
+    std::set<std::shared_ptr<Vertex>> edge_vertices;
 
     int m_num_triangles;
     int m_num_vertices;
     float m_total_area;
+
+    float m_boundary_length;
 
 };
 

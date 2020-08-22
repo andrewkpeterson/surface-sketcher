@@ -49,7 +49,7 @@ typedef CDT::Vertex_handle                                        Vertex_handle;
 
 class Triangulate {
 public:
-    static void triangulate(Mesh &mesh, const Sketch &sketch);
+    static void triangulate(Mesh &mesh, Sketch &sketch);
 
 private:
     static void mark_domains(CDT& cdt, std::map<Face_handle, FaceInfo2> &m);

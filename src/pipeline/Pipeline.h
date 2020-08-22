@@ -61,6 +61,10 @@ public:
         sketch.mapIntersectedFacesToStrokes(mesh);
         std::cout << "DONE" << std::endl;
 
+        std::cout << "Writing result mesh to file" << std::endl;
+        OBJWriter::writeOBJ(mesh, "result.obj", "optimized.txt");
+        std::cout << "DONE" << std::endl;
+
         std::cout << "Initializing curvature direction field..." << std::endl;
         DirectionFieldInitializer::initializeDirectionField(mesh, sketch);
         std::cout << "DONE" << std::endl;

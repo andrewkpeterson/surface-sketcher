@@ -96,3 +96,10 @@ figure(6)
 quiver(xs, ys, u1, u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "on");
 hold on;
 quiver(xs, ys, -u1, -u2, .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "off");
+
+figure(7);
+fileID = fopen("edge_vertices.txt");
+C = textscan(fileID, "%f %f");
+xs = cell2mat(C(1,1));
+ys = -cell2mat(C(1,2));
+scatter(xs,ys);
