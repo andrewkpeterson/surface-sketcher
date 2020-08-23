@@ -139,8 +139,17 @@ void DirectionFieldInitializer::initializeDirectionFieldFromSolutionVector(Mesh 
 
         assert(vectors.find(f->index) == vectors.end());
         vectors[f->index] = std::pair(dir1.normalized(), dir2.normalized());
+        /*if (b.imag() > 0) {
+            f->u = dir1.normalized();
+            f->v = dir2.normalized();
+        } else {
+            f->v = dir1.normalized();
+            f->u = dir2.normalized();
+        }*/
         f->u = dir1.normalized();
         f->v = dir2.normalized();
+        f->a = Eigen::Vector2f(a.real(), a.imag());
+        f->b = Eigen::Vector2f(b.real(), b.imag());
     });
 
     //assignVectors(m, vectors);

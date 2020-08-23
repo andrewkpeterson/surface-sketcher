@@ -36,6 +36,20 @@ public:
         }
     }
 
+    static void writeMagnitudes(Mesh &mesh) {
+        QFile magnitudes("magnitudes.txt");
+        if (magnitudes.open(QIODevice::ReadWrite | QFile::Truncate)) {
+            QTextStream stream(&magnitudes);
+            char buf[512];
+            auto func4 = [&] (std::shared_ptr<Face> f) {
+                std::sprintf(buf, "%f %f %f %f %f %f %f %f", f->centroid.x(), f->centroid.y(), f->u.x(), f->u.y(), f->v.x(), f->v.y(), f->lambda_u, f->lambda_v);
+                stream << buf << endl;
+            };
+
+            mesh.forEachTriangle(func4);
+        }
+    }
+
     static void writeOBJ(Mesh &mesh, std::string obj_file, std::string direction_field_file) {
         QFile file(obj_file.c_str());
         if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
@@ -83,7 +97,6 @@ public:
             mesh.forEachTriangle(func4);
         }
 
-        /*
         QFile z1z2("z1z2.txt");
         if (z1z2.open(QIODevice::ReadWrite | QFile::Truncate)) {
             QTextStream stream(&z1z2);
@@ -107,7 +120,6 @@ public:
 
             mesh.forEachTriangle(func4);
         }
-        */
 
         QFile edges("edge_vertices.txt");
         if (edges.open(QIODevice::ReadWrite | QFile::Truncate)) {

@@ -37,6 +37,11 @@ struct Face {
     float lambda_u = 0;
     float lambda_v = 0;
     bool discontinuity = false;
+    Eigen::Vector2f z1 = Eigen::Vector2f(0,0);
+    Eigen::Vector2f z2 = Eigen::Vector2f(0,0);
+    Eigen::Vector2f a = Eigen::Vector2f(0,0);
+    Eigen::Vector2f b = Eigen::Vector2f(0,0);
+
 
     Eigen::Vector3f normal() {
         Eigen::Vector3f n = (vertices[0]->coords3d() - vertices[1]->coords3d()).cross(vertices[0]->coords3d() - vertices[2]->coords3d()).normalized();
@@ -46,7 +51,7 @@ struct Face {
 };
 
 class Mesh
-{   
+{
 public:
     void init(std::map<Face_handle, bool> &info);
 

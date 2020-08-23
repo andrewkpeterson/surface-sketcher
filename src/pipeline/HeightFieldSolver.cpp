@@ -24,6 +24,7 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
             estimateCurvatureValues(mesh, sketch);
         }
         minimizeELambda(mesh, sketch);
+        if (i == 0) { OBJWriter::writeMagnitudes(mesh); }
         optimizeHeightField(mesh, sketch);
         std::cout << "completed an iteration" << std::endl;
         char buf[50];
@@ -448,7 +449,7 @@ void HeightFieldSolver::computeAndAddCoefficientsForEMatch(Mesh &mesh, const Ske
     float constraint_coordinate = x_coordinate ? constraint_direction.x() : constraint_direction.y();
     float constraint = -constraint_lambda * constraint_coordinate;
 
-    addCoefficientsToMapAndVectorForEMatch(coefficients, vertices, m, b, constraint);
+    addCoefficientsToMapAndVectorForEMatch(f.get(), mesh, coefficients, vertices, m, b, constraint);
 
 }
 
@@ -488,11 +489,13 @@ float HeightFieldSolver::calcK(Face* f, std::shared_ptr<Vertex> v, int face_idx,
 }
 
 float HeightFieldSolver::calcdN(Face* f, std::shared_ptr<Vertex> v, int face_idx, HeightFieldSolver::Values &vs, int N_idx) {
+    // We omit the negative sign in dN = -II*G because "hills" have negative curvature, and the surface is created
+    // as if it is drawn looking at the object down the negative z axis
     switch (N_idx) {
-        case 1: return -(vs.G11 * calcdAlpha(f,v,face_idx,vs) + vs.G21 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
-        case 2: return -(vs.G12 * calcdAlpha(f,v,face_idx,vs) + vs.G22 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
-        case 3: return -(vs.G11 * calcdBeta(f,v,face_idx,vs) + vs.G21 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
-        case 4: return -(vs.G12 * calcdBeta(f,v,face_idx,vs) + vs.G22 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
+        case 1: return (vs.G11 * calcdAlpha(f,v,face_idx,vs) + vs.G21 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
+        case 2: return (vs.G12 * calcdAlpha(f,v,face_idx,vs) + vs.G22 * calcdBeta(f,v,face_idx,vs)) * vs.n3;
+        case 3: return (vs.G11 * calcdBeta(f,v,face_idx,vs) + vs.G21 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
+        case 4: return (vs.G12 * calcdBeta(f,v,face_idx,vs) + vs.G22 * calcdGamma(f,v,face_idx,vs)) * vs.n3;
     }
 }
 
@@ -527,8 +530,8 @@ float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx
     std::shared_ptr<Vertex> k;
     assert(face != nullptr);
     if (v == face->vertices[0]) { i = v; j = face->vertices[1]; k = face->vertices[2]; }
-    if (v == face->vertices[1]) { i = v; j = face->vertices[0]; k = face->vertices[2]; }
-    if (v == face->vertices[2]) { i = v; j = face->vertices[0]; k = face->vertices[1]; }
+    else if (v == face->vertices[1]) { i = v; j = face->vertices[0]; k = face->vertices[2]; }
+    else if (v == face->vertices[2]) { i = v; j = face->vertices[0]; k = face->vertices[1]; }
     assert(i != nullptr);
     assert(j != nullptr);
     assert(k != nullptr);
@@ -552,13 +555,16 @@ float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx
     return (face_idx == 0) ? (C_ik + C_ji) : -(C_ik + C_ji);
 }
 
-void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
-                                                       std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b, float constraint) {
+void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(Face* f, Mesh &mesh, std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
+                                                               std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b, float constraint) {
 
     for (int vertex_idx = 0; vertex_idx < coefficients.size(); vertex_idx++) {
         auto v = vertices[vertex_idx]; // the vertex that the with respect to which the derivative was taken
         float kv = coefficients[vertex_idx];
-        b(v->index) += 2 * constraint * kv;
+        // when we multiply this by a larger number, the curvature vanishes more slowly.
+        // Is the constraint part correct? Upon further inspection, it looks like it is
+        // more that likely that the values being added to the sparse map are too big.
+        b(v->index) += 2 * constraint * kv * (f->area / mesh.getTotalArea());
         for (int neighbor_idx = 0; neighbor_idx < coefficients.size(); neighbor_idx++) {
             auto n = vertices[neighbor_idx];
             float kn = coefficients[neighbor_idx];
@@ -568,7 +574,7 @@ void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(std::vector<float
                 assert(false);
             }
             //std::cout << 2 * kv * kn << std::endl;
-            addToSparseMap(p, 2 * kv * kn, m);
+            addToSparseMap(p, 2 * kv * kn * (f->area / mesh.getTotalArea()), m);
         }
     }
 
