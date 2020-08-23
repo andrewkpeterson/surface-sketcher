@@ -84,7 +84,9 @@ private:
     SketchData data;
     std::vector<Eigen::Vector2f> currentStroke;
     int strokeCount = 0;
+
     int MOVES_PER_STROKE = 2;
+    float DISTANCE_BETWEEN_POINTS = 2;
 
     Ui::ScribbleArea *ui;
 };

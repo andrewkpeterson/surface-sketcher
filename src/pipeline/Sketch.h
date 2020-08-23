@@ -86,6 +86,8 @@ private:
 
     float m_boundary_length;
 
+    static constexpr int RADIUS_OF_POINTS_TO_AVERAGE = 3;
+
     void mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> &strokes);
 
     static constexpr int SVG_SIZE_PARAM = 10;

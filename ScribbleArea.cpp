@@ -219,7 +219,23 @@ void ScribbleArea::drawLineTo(const QPoint &endPoint)
 
     Eigen::Vector2f start = Eigen::Vector2f(lastPoint.x(), lastPoint.y());
     if (strokeCount > MOVES_PER_STROKE) {
-        currentStroke.push_back(start / Sketch::SKETCH_SCALE);
+        if (m_type == StrokeType::BOUNDARY) {
+            currentStroke.push_back(start / Sketch::SKETCH_SCALE);
+            std::cout << "x: " << start.x() << "y: " << start.y() << std::endl;
+        } else {
+            Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
+            float length = (end - start).norm();
+            if (length > 0) {
+                float t = 0;
+                while (t < 1) {
+                    t += DISTANCE_BETWEEN_POINTS / length;
+                    Eigen::Vector2f point = start + (end - start) * t;
+                    currentStroke.push_back(point / Sketch::SKETCH_SCALE);
+                    std::cout << "x: " << point.x() << " y: " << point.y() << std::endl;
+                }
+                currentStroke.push_back(end / Sketch::SKETCH_SCALE);
+            }
+        }
         strokeCount = 0;
     }
     strokeCount++;

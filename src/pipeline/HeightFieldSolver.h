@@ -10,12 +10,16 @@ class HeightFieldSolver
 public:
     static void solveForHeightField(Mesh &mesh, Sketch &sketch);
 
-    static constexpr float PRINCIPLE_CURVATURE_MU = 0;
+    // the cuvature will be consistently underestimated without regularizing the radius of the fitted circle
+    static constexpr float NORMAL_CURVATURE_MU = 2e-5;
+
 private:
 
     static void initializeCurvatureValues(Sketch &sketch);
     static void estimateCurvatureValues(Mesh &mesh, Sketch &sketch);
     static void estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch,
+                                              std::vector<Sketch::Stroke> &strokes, bool convex);
+    static void estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Sketch &sketch,
                                               std::vector<Sketch::Stroke> &strokes, bool convex);
     static float fitCircle(Mesh &mesh, Sketch &sketch, std::vector<Eigen::Vector2f> points);
 
@@ -77,7 +81,7 @@ private:
     static constexpr float INITIAL_CURVATURE_MAGNITUDE = 1;
 
     static constexpr float CURVATURE_MAGNITUDE_SMOOTHNESS_BETA = .01;
-    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1e10; // keep an eye on this!
+    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1e3; // keep an eye on this!
 
     static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 1e6; // omega_0, changes for different cases
     static constexpr float BOUNDARY_REGULARITY_CONSTRAINT_WEIGHT = 1; // omega_1, same for all cases

@@ -260,6 +260,7 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
     CurvatureStrokeSegment segment;
     for (int i = 0; i < s.size(); i++) {
 
+        /*
         // make sure this is not a duplicate of the previous point
         if (i > 0) {
             if ((s[i] - s[i-1]).norm() == 0) {
@@ -273,6 +274,7 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
                 continue;
             }
         }
+        */
 
         std::shared_ptr<StrokePoint> point = std::make_shared<StrokePoint>();
         point->coordinates = s[i];
@@ -287,34 +289,47 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
             add_segment_to_stroke = true;
         }
 
+        Eigen::Vector2f backward_point(0,0);
+        Eigen::Vector2f forward_point(0,0);
+        int offset = 1;
+        while (offset <= RADIUS_OF_POINTS_TO_AVERAGE) {
+            if (i - offset >= 0) { backward_point += s[i-offset]; }
+            if (i + offset < s.size()) { forward_point += s[i+offset]; }
+            offset++;
+        }
         Eigen::Vector2f backward_dir(0,0);
         float backward_dist = 1;
         Eigen::Vector2f forward_dir(0,0);
         float forward_dist = 1;
         if (i == 0) {
-            forward_dir = (s[i+1] - s[i]).normalized();
-            forward_dist = (s[i+1] - s[i]).norm();
+            Eigen::Vector2f forward = forward_point - s[i];
+            forward_dir = forward.normalized();
+            forward_dist = forward.norm();
         } else if (i == s.size() - 1) {
-            backward_dir = (s[i] - s[i-1]).normalized();
-            backward_dist = (s[i] - s[i-1]).norm();
+            Eigen::Vector2f backward = s[i] - backward_point;
+            backward_dir = backward.normalized();
+            backward_dist = backward.norm();
         } else {
-            forward_dir = (s[i+1] - s[i]).normalized();
-            forward_dist = (s[i+1] - s[i]).norm();
-            backward_dir = (s[i] - s[i-1]).normalized();
-            backward_dist = (s[i] - s[i-1]).norm();
+            Eigen::Vector2f forward = forward_point - s[i];
+            forward_dir = forward.normalized();
+            forward_dist = forward.norm();
+            Eigen::Vector2f backward = s[i] - backward_point;
+            backward_dir = backward.normalized();
+            backward_dist = backward.norm();
         }
 
         if (backward_dist == 0 && forward_dist > 0) { point->tangent_dir = (forward_dir / forward_dist).normalized(); }
         else if (forward_dist == 0 && backward_dist > 0) { point->tangent_dir = (backward_dir / backward_dist).normalized(); }
         else { point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized(); }
 
+        /*
         // if this statement executes, then the next point is a duplicate of the current point.
         // We must look ahead two points to compute the tangent directions
         if ((std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) && i < s.size() - 2 && (s[i] - s[i+2]).norm() > 0) {
             forward_dir = (s[i+2] - s[i]).normalized();
             forward_dist = (s[i+2] - s[i]).norm();
-            backward_dir = (s[i+2] - s[i]).normalized();
-            backward_dist = (s[i+2] - s[i]).norm();
+            backward_dir = (s[i] - s[i-2]).normalized();
+            backward_dist = (s[i] - s[i-2]).norm();
             point->tangent_dir = (backward_dir / backward_dist + forward_dir / forward_dist).normalized();
         } else if (std::isnan(point->tangent_dir.x()) || std::isnan(point->tangent_dir.y())) {
             point->tangent_dir = (backward_dir / backward_dist).normalized();
@@ -322,7 +337,14 @@ Sketch::Stroke Sketch::addBendingStrokeFromScribble(const std::vector<Eigen::Vec
 
         // TODO: need to resolve this by smoothing the stroke. Sometimes, we get something like
         // s[0] = (0,0), s[1] = (0,1), s[2] = (0,0), which ends up failing this assert
+        if (point->tangent_dir.norm() > 0) {
+            std::cout << "x " << s[i-1].x() << " y" << s[i-1].y() << std::endl;
+            std::cout << "x " << s[i].x() << " y" << s[i].y() << std::endl;
+            std::cout << "x " << s[i+1].x() << " y" << s[i+1].y() << std::endl;
+        }
+        */
         assert(point->tangent_dir.norm() > 0);
+        assert(!std::isnan(point->tangent_dir.x()) && !std::isnan(point->tangent_dir.y()));
 
         segment.seg.push_back(point);
         if (add_segment_to_stroke || (i == s.size() - 1)) {

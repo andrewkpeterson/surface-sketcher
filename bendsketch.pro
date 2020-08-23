@@ -41,14 +41,6 @@ HEADERS += \
     src/pipeline/Triangulate.h \
     src/utils/OBJWriter.h \
     nanosvg/src/nanosvg.h \
-    autodiff/forward.hpp \
-    autodiff/reverse.hpp \
-    autodiff/common/eigen.hpp \
-    autodiff/common/meta.hpp \
-    autodiff/forward/eigen.hpp \
-    autodiff/forward/forward.hpp \
-    autodiff/reverse/eigen.hpp \
-    autodiff/reverse/reverse.hpp \
     $$files(alglib/*.h, true)
 
 INCLUDEPATH += /usr/local/include/eigen3 \

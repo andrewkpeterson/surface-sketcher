@@ -1,5 +1,4 @@
 #include "HeightFieldSolver.h"
-#include "autodiff/forward.hpp"
 #include "alglib/optimization.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -10,9 +9,9 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
 
     /*
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
-        f->vertices[0]->height = std::sin(f->vertices[0]->coords.y() * 2);
-        f->vertices[1]->height = std::sin(f->vertices[1]->coords.y() * 2);
-        f->vertices[2]->height = std::sin(f->vertices[2]->coords.y() * 2);
+        f->vertices[0]->height = std::sin(f->vertices[0]->coords.y());
+        f->vertices[1]->height = std::sin(f->vertices[1]->coords.y());
+        f->vertices[2]->height = std::sin(f->vertices[2]->coords.y());
     });
     estimateCurvatureValues(mesh, sketch);
     */
@@ -62,8 +61,8 @@ void HeightFieldSolver::initializeCurvatureValues(Sketch &sketch) {
 }
 
 void HeightFieldSolver::estimateCurvatureValues(Mesh &mesh, Sketch &sketch) {
-    estimateCurvatureValuesHelper(mesh, sketch, sketch.getConvexStrokes(), true);
-    estimateCurvatureValuesHelper(mesh, sketch, sketch.getConcaveStrokes(), false);
+    estimateCurvatureValuesHelperMorePrecise(mesh, sketch, sketch.getConvexStrokes(), true);
+    estimateCurvatureValuesHelperMorePrecise(mesh, sketch, sketch.getConcaveStrokes(), false);
 
 }
 
@@ -84,8 +83,8 @@ private:
 struct F2 {
   template <typename T>
   bool operator()(const T* const r, T* residual) const {
-    residual[0] = T(std::sqrt(HeightFieldSolver::PRINCIPLE_CURVATURE_MU)) * r[0];
-    //residual[0] = T(HeightFieldSolver::PRINCIPLE_CURVATURE_MU) * r[0];
+    //residual[0] = T(HeightFieldSolver::NORMAL_CURVATURE_MU) * r[0];
+      residual[0] = T(std::sqrt((HeightFieldSolver::NORMAL_CURVATURE_MU))) * r[0];
     return true;
   }
 };
@@ -117,6 +116,8 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
                 points.push_back(point_on_plane);
             }
 
+            float N = segment.size();
+
             using ceres::AutoDiffCostFunction;
             using ceres::CostFunction;
             using ceres::Problem;
@@ -133,7 +134,7 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             // Remember that the origin of the projection plane is the center stroke point of the line segment, so we
             // don't actually need to take the height of the surface into account when initializing the center.
             double r = 10.0;
-            double c1 = convex ? -.1 : .1;
+            double c1 = convex ? -.1 : .1; // c1 is the "up and down" direction, so this is the only coordinate that actually needs to be controlled in this way
             double c2 = convex ? -.1 : .1;
 
             Problem problem;
@@ -144,6 +145,8 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
                 problem.AddResidualBlock(func1, nullptr, &c1, &c2, &r);
                 problem.AddResidualBlock(func2, nullptr, &r);
             }
+            //CostFunction* func2 = new AutoDiffCostFunction<F2, 1, 1>(new F2);
+            //problem.AddResidualBlock(func2, nullptr, &r);
 
             Solver::Options options;
             options.max_num_iterations = 200;
@@ -151,7 +154,7 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             //options.minimizer_progress_to_stdout = true;
             Solver::Summary summary;
             Solve(options, &problem, &summary);
-            std::cout << (convex ? "convex " : "concave ") << "curvature at " << "(" << segment[center_idx]->coords3d().x() << "," << segment[center_idx]->coords3d().y() << "): " <<
+            std::cout << "points: " << N << " " << (convex ? "convex " : "concave ") << "curvature at " << "(" << segment[center_idx]->coords3d().x() << "," << segment[center_idx]->coords3d().y() << "): " <<
                          (convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
 
             // Update curvature values for segment and points. Remember that we are measuring normal curvature!
@@ -162,6 +165,94 @@ void HeightFieldSolver::estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch
             for (int i = 0; i < segment.size(); i++) {
                 segment[i]->curvature_value = convex ? -(1.0 / r) : (1.0 / r);
             }
+        }
+    }
+}
+
+void HeightFieldSolver::estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Sketch &sketch, std::vector<Sketch::Stroke> &strokes, bool convex) {
+    for (int stroke_idx = 0; stroke_idx < strokes.size(); stroke_idx++) {
+        auto &stroke = strokes[stroke_idx];
+        int size = sketch.getLengthOfStrokeInPoints(stroke);
+        for (int i = 0; i < size; i++) {
+            auto center_point = sketch.getStrokePointByFlattenedIndex(stroke, i);
+            std::vector<Eigen::Vector2f> points;
+            Eigen::Vector3f origin = center_point->coords3d();
+            Eigen::Vector3f n = center_point->triangle->normal().normalized();
+            Eigen::Vector3f t = Eigen::Vector3f(center_point->tangent_dir[0], center_point->tangent_dir[1], 0);
+            Eigen::Vector3f plane_normal = t.cross(n).normalized();
+            Eigen::Vector3f other_basis = n.cross(plane_normal).normalized();
+            float segment_length = 0;
+            int offset = 1;
+            while (segment_length < sketch.getBendingStrokeSegmentLength()) {
+                // NOTE: This will work best when the strokes are very dense with points
+                // NOTE: This might work better if the curvature was estimated at every
+                // stroke point, rather than on each stroke point segment
+                float curr_length = segment_length;
+                if (i - offset >= 0) {
+                    auto new_point = sketch.getStrokePointByFlattenedIndex(stroke, i - offset);
+                    Eigen::Vector3f projected_point = new_point->coords3d() - (new_point->coords3d() - origin).dot(plane_normal) * plane_normal;
+                    Eigen::Vector2f point_on_plane = Eigen::Vector2f((projected_point - origin).dot(n), (projected_point - origin).dot(other_basis));
+                    points.push_back(point_on_plane);
+                    segment_length += (center_point->coordinates - new_point->coordinates).norm();
+                }
+                if (i + offset < size) {
+                    auto new_point = sketch.getStrokePointByFlattenedIndex(stroke, i + offset);
+                    Eigen::Vector3f projected_point = new_point->coords3d() - (new_point->coords3d() - origin).dot(plane_normal) * plane_normal;
+                    Eigen::Vector2f point_on_plane = Eigen::Vector2f((projected_point - origin).dot(n), (projected_point - origin).dot(other_basis));
+                    points.push_back(point_on_plane);
+                    segment_length += (center_point->coordinates - new_point->coordinates).norm();
+                }
+                if (segment_length - curr_length == 0) { break; }
+                offset++;
+            }
+
+            float N = points.size();
+
+            using ceres::AutoDiffCostFunction;
+            using ceres::CostFunction;
+            using ceres::Problem;
+            using ceres::Solve;
+            using ceres::Solver;
+
+            // We need to initialize the center of the circle according to the known convexity of the bending line.
+            // "Hills" in the surface are due to convex bending lines, and the surface normal always points upward.
+            // This means that the center of the circle we are creating will be BELOW the surface (so we initialize
+            // the center of the circle at (-.1,-.1) on the projection plane spanned by the lifted curve's tangent
+            // vector and the surface normal). "Valleys" in the surface are due to conave bending lines, which means
+            // than the center of the circle should be ABOVE the projection plane. This is why the center of the
+            // circle is initialized at (.1,.1)
+            // Remember that the origin of the projection plane is the center stroke point of the line segment, so we
+            // don't actually need to take the height of the surface into account when initializing the center.
+            double r = 10.0;
+            double c1 = convex ? -.1 : .1; // c1 is the "up and down" direction, so this is the only coordinate that actually needs to be controlled in this way
+            double c2 = convex ? -.1 : .1;
+
+            Problem problem;
+
+            for (int i = 0; i < points.size(); i++) {
+                CostFunction* func1 = new AutoDiffCostFunction<F1, 1, 1, 1, 1>(new F1(points[i].x(), points[i].y()));
+                CostFunction* func2 = new AutoDiffCostFunction<F2, 1, 1>(new F2);
+                problem.AddResidualBlock(func1, nullptr, &c1, &c2, &r);
+                problem.AddResidualBlock(func2, nullptr, &r);
+            }
+            //CostFunction* func2 = new AutoDiffCostFunction<F2, 1, 1>(new F2);
+            //problem.AddResidualBlock(func2, nullptr, &r);
+
+            Solver::Options options;
+            options.max_num_iterations = 200;
+            options.function_tolerance = .000001;
+            //options.minimizer_progress_to_stdout = true;
+            Solver::Summary summary;
+            Solve(options, &problem, &summary);
+            std::cout << "points: " << N << " " << (convex ? "convex " : "concave ") << "curvature at " << "(" << center_point->coords3d().x() << "," << center_point->coords3d().y() << "): " <<
+                         (convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
+
+            // Update curvature values for segment and points. Remember that we are measuring normal curvature!
+            // Convex sections (i.e. "Hills") have negative normal curvature because the unit tangent vector
+            // pulls in the opposite direction of the surface normal, which points upward. Concave sections
+            // (i.e. "Valleys") have positive normal curvature because the unit tangent vector pull into the
+            // same direction as the surface normal.
+            center_point->curvature_value = convex ? -(1.0 / r) : (1.0 / r);
         }
     }
 }
@@ -385,7 +476,7 @@ void HeightFieldSolver::optimizeHeightFieldHelper(Mesh &mesh, const Sketch &sket
             for (int i = 0; i < f->neighbors.size(); i++) {
                 Eigen::Vector2f n = f->neighbors[i]->centroid;
                 A(i,0) = std::pow(n.x() - p.x(), 2);
-                A(i,1) = (n.x() - p.x()) * (n.y() - p.y());
+                A(i,1) = 2 * (n.x() - p.x()) * (n.y() - p.y());
                 A(i,2) = std::pow(n.y() - p.y(), 2);
             }
 
@@ -519,6 +610,7 @@ float HeightFieldSolver::calcdB(Face* f, std::shared_ptr<Vertex> v, int face_idx
 }
 
 float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx, bool deriv_wrt_x) {
+    /*
     Face* face;
     if (face_idx == 0) {
         face = f;
@@ -553,6 +645,57 @@ float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx
     float C_ji = deriv_wrt_x ? (ij_perp.x() / (2.0 * face->area)) : (ij_perp.y() / (2.0 * face->area));
 
     return (face_idx == 0) ? (C_ik + C_ji) : -(C_ik + C_ji);
+    */
+    Face* face;
+    if (face_idx == 0) {
+        face = f;
+    } else {
+        face = f->neighbors[face_idx - 1];
+    }
+    std::shared_ptr<Vertex> i;
+    std::shared_ptr<Vertex> j;
+    std::shared_ptr<Vertex> k;
+    bool deriv_wrt_i = false;
+    bool deriv_wrt_j = false;
+    bool deriv_wrt_k = false;
+    assert(face != nullptr);
+    i = face->vertices[0];
+    j = face->vertices[1];
+    k = face->vertices[2];
+    if (v == face->vertices[0]) { deriv_wrt_i = true; }
+    else if (v == face->vertices[1]) { deriv_wrt_j = true; }
+    else if (v == face->vertices[2]) { deriv_wrt_k = true; }
+    assert(deriv_wrt_i || deriv_wrt_j || deriv_wrt_k);
+    assert(i != nullptr);
+    assert(j != nullptr);
+    assert(k != nullptr);
+
+    Eigen::Matrix2f m;
+    m << 0, -1,
+         1, 0;
+    Eigen::Matrix2f m_reverse;
+    m_reverse << 0, 1,
+         -1, 0;
+
+    Eigen::Vector2f ki = i->coords - k->coords;
+    Eigen::Vector2f ki_perp = (m * ki).dot(j->coords - i->coords) > 0 ? m * ki : m_reverse * ki;
+
+    Eigen::Vector2f ij = j->coords - i->coords;
+    Eigen::Vector2f ij_perp = (m * ij).dot(k->coords - j->coords) > 0 ? m * ij : m_reverse * ij;
+
+    float C_ik = deriv_wrt_x ? (ki_perp.x() / (2.0 * face->area)) : (ki_perp.y() / (2.0 * face->area));
+    float C_ji = deriv_wrt_x ? (ij_perp.x() / (2.0 * face->area)) : (ij_perp.y() / (2.0 * face->area));
+
+    float coefficient;
+    if (deriv_wrt_i) {
+        coefficient = -C_ik - C_ji;
+    } else if (deriv_wrt_j) {
+        coefficient = C_ik;
+    } else if (deriv_wrt_k) {
+        coefficient = C_ji;
+    }
+
+    return (face_idx == 0) ? -coefficient : coefficient;
 }
 
 void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(Face* f, Mesh &mesh, std::vector<float> coefficients, std::vector<std::shared_ptr<Vertex>> vertices,
