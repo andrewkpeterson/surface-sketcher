@@ -110,47 +110,12 @@ void Triangulate::addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen
     }
 }
 
-void Triangulate::findPath(const std::vector<SegmentedStroke> &strokes, int first_stroke,
-                           std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence) {
+std::vector<Eigen::Vector2f> Triangulate::makeBoundary(const std::vector<SegmentedStroke> &strokes) {
     std::set<int> used_strokes;
-    auto &initial_stroke = strokes[first_stroke];
-    if (initial_stroke.index_0_neighbors.size() > 0) {
-        boundary = findPathHelper(strokes, first_stroke, initial_stroke.index_0_neighbors[0].neighbor_idx, boundary,
-                                 strokes_sequence, used_strokes, initial_stroke.index_0_neighbors[0].adjacent_to_index_0_of_neighbor, 0);
-    } else if (initial_stroke.last_index_neighbors.size() > 0) {
-        int size = initial_stroke.points.size();
-        boundary = findPathHelper(strokes, first_stroke, initial_stroke.last_index_neighbors[size- 1].neighbor_idx, boundary, strokes_sequence, used_strokes,
-                                  initial_stroke.last_index_neighbors[size - 1].adjacent_to_index_0_of_neighbor, 0);
-        }
-    }
-}
+    auto &initial_stroke = strokes[0];
+    int steps_away_from_initial = 0;
+    while (used_strokes.size() < strokes.size()) {
 
-std::vector<Eigen::Vector2f> Triangulate::findPathHelper(const std::vector<SegmentedStroke> &strokes, int first_stroke, int current_stroke,
-                                 std::vector<Eigen::Vector2f> boundary, std::vector<int> &strokes_sequence, std::set<int> used_strokes,
-                                 bool arrived_at_current_stroke_at_index_0, int depth) {
-    bool adjacent_to_first_stroke_at_index_0 = false;
-    bool adjacent_to_first_stroke_at_last_idx = false;
-    const auto &current = strokes[current_stroke];
-
-    for (int i = 0; i < current.index_0_neighbors.size(); i++) {
-        if (current.index_0_neighbors[i].neighbor_idx == first_stroke) {
-            adjacent_to_first_stroke_at_index_0 = true;
-        }
-    }
-    for (int i = 0; i < current.last_index_neighbors.size(); i++) {
-        if (current.last_index_neighbors[i].neighbor_idx == first_stroke) {
-            adjacent_to_first_stroke_at_last_idx = true;
-        }
-    }
-
-    bool can_move_forward = current.index_0_neighbors.size() > 0 || current.last_index_neighbors.size() > 0;
-    if (depth >= 1 && (adjacent_to_first_stroke_at_index_0 || adjacent_to_first_stroke_at_last_idx)) {
-        if ()
-        return true;
-    } else if (can_move_forward) {
-
-    } else {
-        return std::vector<Eigen::Vector2f>();
     }
 }
 
@@ -203,7 +168,7 @@ std::vector<SegmentedStroke> Triangulate::segmentBoundaryStrokes(const std::vect
         }
     }
 
-    // remove any segmented strokes without neighbors on both sides
+    // remove any segmented strokes with neighbors only on one side
     int i = 0;
     while (i < segmented_strokes.size()) {
         if (segmented_strokes[i].last_index_neighbors.size() == 0 || segmented_strokes[i].index_0_neighbors.size() == 0) {
@@ -220,61 +185,47 @@ void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
 
     const auto &strokes = sketch.getBoundaryStrokes();
     const auto segmented_boundary_strokes = segmentBoundaryStrokes(strokes);
-    int first_idx = 0;
-    std::set<int> used_strokes;
-    while (used_strokes.size() < strokes.size()) {
-        Polygon_2 polygon;
-        std::vector<int> stroke_sequence;
-        std::vector<Eigen::Vector2f> boundary;
-        findPath(segmented_boundary_strokes, first_idx, boundary, stroke_sequence);
-        for (int i = 0; i < stroke_sequence.size(); i++) {
-            used_strokes.insert(stroke_sequence[i]);
-        }
-
-        // find the next unused stroke
-        for (int i = 0; i < strokes.size(); i++) {
-            if (used_strokes.find(i) == used_strokes.end()) { first_idx = i; }
-        }
-
-        // if the path was incomplete, then we should not use it
-        if (boundary.size() == 0) { continue; }
-
-        // get the length of the boundary
-        float length = 0;
-        for (int i = 0; i < boundary.size() - 1; i++) {
-            length += (boundary[i] - boundary[i+1]).norm();
-        }
-        sketch.setBoundaryLength(length);
-
-        CDT &cdt = mesh.getCDT();
-
-        cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
-
-        CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
-
-        // mark which faces are actually inside the constraints. If we don't do this step
-        // then the entire convex hull will be triangulated.
-        std::map<Face_handle, FaceInfo2> domain_info;
-        for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-            domain_info[it] = FaceInfo2();
-        }
-        mark_domains(cdt, domain_info);
-
-        // NOTE: a face is valid if it is within the constraints and it is not an infinite face
-
-        // get rid of artifacts by recursively getting rid of all faces that have 1 neighbor.
-        // this will result in a mesh with much fewer artifacts
-        removeArtifacts(cdt, domain_info);
-
-        // initialize mesh struct
-        std::map<Face_handle, bool> info;
-        for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-            if (!cdt.is_infinite(it) && domain_info[it].in_domain()) {
-                info[it] = true;
-            } else {
-                info[it] = false;
-            }
-        }
-        mesh.addSurfaceToMesh(info);
+    std::vector<Eigen::Vector2f> boundary = makeBoundary(segmented_boundary_strokes);
+    Polygon_2 polygon;
+    for (int i = 0; i < boundary.size(); i++) {
+        polygon.push_back(Point(boundary[i].x(), boundary[i].y()));
     }
+
+    // get the length of the boundary
+    float length = 0;
+    for (int i = 0; i < boundary.size() - 1; i++) {
+        length += (boundary[i] - boundary[i+1]).norm();
+    }
+    sketch.setBoundaryLength(length);
+
+    CDT &cdt = mesh.getCDT();
+
+    cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
+
+    CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
+
+    // mark which faces are actually inside the constraints. If we don't do this step
+    // then the entire convex hull will be triangulated.
+    std::map<Face_handle, FaceInfo2> domain_info;
+    for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
+        domain_info[it] = FaceInfo2();
+    }
+    mark_domains(cdt, domain_info);
+
+    // NOTE: a face is valid if it is within the constraints and it is not an infinite face
+
+    // get rid of artifacts by recursively getting rid of all faces that have 1 neighbor.
+    // this will result in a mesh with much fewer artifacts
+    removeArtifacts(cdt, domain_info);
+
+    // initialize mesh struct
+    std::map<Face_handle, bool> info;
+    for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
+        if (!cdt.is_infinite(it) && domain_info[it].in_domain()) {
+            info[it] = true;
+        } else {
+            info[it] = false;
+        }
+    }
+    mesh.addSurfaceToMesh(info);
 }

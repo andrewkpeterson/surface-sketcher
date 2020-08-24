@@ -76,10 +76,7 @@ private:
     static std::vector<IntersectionResult> findIntersections(const std::vector<Eigen::Vector2f> &A, int A_stroke_idx,
                                                              const std::vector<Eigen::Vector2f> &B, int B_stroke_idx);
     static std::vector<IntersectionResult> intersectionExists(const std::vector<Eigen::Vector2f> &A, const std::vector<Eigen::Vector2f> &B);
-    static void findPath(const std::vector<SegmentedStroke> &strokes, int first_stroke, std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence);
-    static std::vector<Eigen::Vector2f> findPathHelper(const std::vector<SegmentedStroke> &strokes,
-                                                       int first_stroke, int current_stroke, std::vector<Eigen::Vector2f> boundary, std::vector<int> &strokes_sequence,
-                                                       std::set<int> used_strokes, bool arrived_at_current_stroke_at_index_0, int depth);
+    static void makeBoundary(const std::vector<SegmentedStroke> &strokes, int first_stroke, std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence);
     static void addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor);
     static std::vector<SegmentedStroke> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
     static constexpr float FINENESS = .1; //.1 normally, .2 for coarse

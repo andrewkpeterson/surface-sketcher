@@ -45,6 +45,8 @@ float Mesh::calcEFGArea(const Face *f, const Face *g) {
 void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info) {
     int num_faces = 0;
     int num_verts = 0;
+    int next_face_index = 0;
+    int next_vertex_index = 0;
     float total_area = 0;
 
     std::unordered_map<Face_handle, std::shared_ptr<Face>> visited_faces;
@@ -118,9 +120,9 @@ void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info) {
         });
     });
 
-    m_num_triangles += num_faces;
-    m_total_area += total_area;
-    m_num_vertices += num_verts;
+    m_num_triangles = num_faces;
+    m_total_area = total_area;
+    m_num_vertices = num_verts;
 }
 
 void Mesh::forEachTriangle(const std::function<void(std::shared_ptr<Face>)> &func) {
