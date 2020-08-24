@@ -28,19 +28,13 @@ public:
         int strokeId;
     };
 
-    struct CurvatureStrokeSegment {
-        // a segment begins at the terminal point of the previous segment and terminates at its last point.
-        // The exception to this is the first segment in a stroke, which begins at its own first point.
-        std::vector<std::shared_ptr<StrokePoint>> seg;
-    };
-
     struct LineIntersection {
         std::pair<std::shared_ptr<StrokePoint>, std::shared_ptr<StrokePoint>> points;
         Eigen::Vector2f dir;
     };
 
     struct Stroke {
-        std::vector<CurvatureStrokeSegment> segments;
+        std::vector<std::shared_ptr<StrokePoint>> points;
         int id;
     };
 
@@ -69,10 +63,8 @@ public:
         assert(face2lines.find(f) != face2lines.end());
         return face2lines.at(f);
     }
-    std::vector<Stroke>& getConvexStrokes() { return convex_strokes; }
-    std::vector<Stroke>& getConcaveStrokes() { return concave_strokes; }
-    static int getLengthOfStrokeInPoints(const Stroke &stroke);
-    static std::shared_ptr<StrokePoint> getStrokePointByFlattenedIndex(const Stroke &stroke, int idx);
+    const std::vector<Stroke>& getConvexStrokes() { return convex_strokes; }
+    const std::vector<Stroke>& getConcaveStrokes() { return concave_strokes; }
 
     static constexpr double SKETCH_SCALE = 100.0; // factor by which the sketch is scaled down
 
@@ -86,11 +78,10 @@ private:
 
     float m_boundary_length;
 
-    static constexpr int RADIUS_OF_POINTS_TO_AVERAGE = 3;
+    static constexpr int RADIUS_OF_POINTS_TO_AVERAGE = 15;
+    static constexpr int INDEX_OF_STROKE_TO_START = 8;
 
     void mapIntersectedFacesToStrokesHelper(Mesh &mesh, std::vector<Stroke> &strokes);
-
-    static constexpr int SVG_SIZE_PARAM = 10;
 };
 
 #endif // SKETCH_H

@@ -32,8 +32,6 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     Usolver.analyzePattern(Au);
     Usolver.factorize(Au);
     Eigen::VectorXd xu = Usolver.solve(-bu); // this is -bu rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
-    //std::cout << Usolver.info() << std::endl;
-    //std::cout << Usolver.lastErrorMessage() << std::endl;
 
     // get A and b to calculate new v vectors
     std::vector<Triplet> Av_coefficients;
@@ -55,8 +53,6 @@ void DirectionFieldOptimizer::runIterationOfBendFieldEnergyOptimization(Mesh &me
     Vsolver.analyzePattern(Av);
     Vsolver.factorize(Av);
     Eigen::VectorXd xv = Vsolver.solve(-bv); // this is -bv rather than bv because the solver solves Ax = bv, but b was set up to solve Ax + bv = 0
-    //std::cout << Vsolver.info() << std::endl;
-    //std::cout << Vsolver.lastErrorMessage() << std::endl;
 
     // normalize u and v vectors and assign new values to mesh
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
@@ -115,11 +111,7 @@ void DirectionFieldOptimizer::addCoefficientsForStrokeConstraintsHelper(Mesh &me
     bool use_constraint = (coefficientsForV && (best_v.dot(d) > best_u.dot(d))) ||
                           (!coefficientsForV && (best_u.dot(d) > best_v.dot(d)));
 
-
     if (use_constraint) {
-        if (coefficientsForV && std::abs(d.x()) > std::abs(d.y())) {
-            std::cout << "stop" << std::endl;
-        }
         // Here, we are creating an equation of the form Ax + b = 0. Note that the Eigen solver actually solves Wx = z, so
         // we pass -b into the solver. The modified constraint is the constraint or the negative of the constraint,
         // whichever is closer to the vector being constrained. To create the equation of the form Ax + b, we want to add

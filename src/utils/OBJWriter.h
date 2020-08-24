@@ -17,18 +17,18 @@ public:
             char buf[512];
 
             for (int i = 0; i < sketch.getConvexStrokes().size(); i++) {
-                int size = sketch.getLengthOfStrokeInPoints(sketch.getConvexStrokes()[i]);
+                int size = sketch.getConvexStrokes()[i].points.size();
                 for (int j = 0; j < size; j++) {
-                    auto point = sketch.getStrokePointByFlattenedIndex(sketch.getConvexStrokes()[i], j);
+                    auto point = sketch.getConvexStrokes()[i].points[j];
                     std::sprintf(buf, "%f %f %f %f", point->coordinates.x(), point->coordinates.y(), point->tangent_dir.x(), point->tangent_dir.y());
                     stream << buf << endl;
                 }
             }
 
             for (int i = 0; i < sketch.getConcaveStrokes().size(); i++) {
-                int size = sketch.getLengthOfStrokeInPoints(sketch.getConcaveStrokes()[i]);
+                int size = sketch.getConcaveStrokes()[i].points.size();
                 for (int j = 0; j < size; j++) {
-                    auto point = sketch.getStrokePointByFlattenedIndex(sketch.getConcaveStrokes()[i], j);
+                    auto point = sketch.getConcaveStrokes()[i].points[j];
                     std::sprintf(buf, "%f %f %f %f", point->coordinates.x(), point->coordinates.y(), point->tangent_dir.x(), point->tangent_dir.y());
                     stream << buf << endl;
                 }

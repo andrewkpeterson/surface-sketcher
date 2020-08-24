@@ -80,116 +80,201 @@ void removeArtifacts(CDT &cdt, std::map<Face_handle, FaceInfo2> &domain_info) {
     }
 }
 
+std::vector<IntersectionResult> Triangulate::findIntersections(const std::vector<Eigen::Vector2f> &A, int A_stroke_idx,
+                                                               const std::vector<Eigen::Vector2f> &B, int B_stroke_idx) {
+    std::vector<IntersectionResult> final_results;
+    bool found_one = false;
+    int last_successful_idx = 0;
+    for (int a_idx = 0; a_idx < A.size(); a_idx++) {
+        for (int b_idx = 0; b_idx < B.size(); b_idx++) {
+            float dist = (A[a_idx] - B[b_idx]).norm();
+            if (dist < SAME_POINT_THRESHOLD && (!found_one || (found_one && (A[a_idx] - A[last_successful_idx]).norm() > SAME_INTERSECTION_THRESHOLD))) {
+                IntersectionResult r;
+                r.A_stroke_idx = A_stroke_idx;
+                r.B_stroke_idx = B_stroke_idx;
+                r.A_point_idx = a_idx;
+                r.B_point_idx = b_idx;
+                r.dist = dist;
+                found_one = true;
+            }
+        }
+    }
+    return final_results;
+}
+
+void Triangulate::addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor) {
+    if (met_at_idx_0_neighbor) {
+        boundary.insert(boundary.begin(), stroke.points.begin(), stroke.points.end());
+    } else {
+        boundary.insert(boundary.begin(), stroke.points.rbegin(), stroke.points.rend());
+    }
+}
+
+void Triangulate::findPath(const std::vector<SegmentedStroke> &strokes, int first_stroke,
+                           std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence) {
+    std::set<int> used_strokes;
+    auto &initial_stroke = strokes[first_stroke];
+    if (initial_stroke.index_0_neighbors.size() > 0) {
+        boundary = findPathHelper(strokes, first_stroke, initial_stroke.index_0_neighbors[0].neighbor_idx, boundary,
+                                 strokes_sequence, used_strokes, initial_stroke.index_0_neighbors[0].adjacent_to_index_0_of_neighbor, 0);
+    } else if (initial_stroke.last_index_neighbors.size() > 0) {
+        int size = initial_stroke.points.size();
+        boundary = findPathHelper(strokes, first_stroke, initial_stroke.last_index_neighbors[size- 1].neighbor_idx, boundary, strokes_sequence, used_strokes,
+                                  initial_stroke.last_index_neighbors[size - 1].adjacent_to_index_0_of_neighbor, 0);
+        }
+    }
+}
+
+std::vector<Eigen::Vector2f> Triangulate::findPathHelper(const std::vector<SegmentedStroke> &strokes, int first_stroke, int current_stroke,
+                                 std::vector<Eigen::Vector2f> boundary, std::vector<int> &strokes_sequence, std::set<int> used_strokes,
+                                 bool arrived_at_current_stroke_at_index_0, int depth) {
+    bool adjacent_to_first_stroke_at_index_0 = false;
+    bool adjacent_to_first_stroke_at_last_idx = false;
+    const auto &current = strokes[current_stroke];
+
+    for (int i = 0; i < current.index_0_neighbors.size(); i++) {
+        if (current.index_0_neighbors[i].neighbor_idx == first_stroke) {
+            adjacent_to_first_stroke_at_index_0 = true;
+        }
+    }
+    for (int i = 0; i < current.last_index_neighbors.size(); i++) {
+        if (current.last_index_neighbors[i].neighbor_idx == first_stroke) {
+            adjacent_to_first_stroke_at_last_idx = true;
+        }
+    }
+
+    bool can_move_forward = current.index_0_neighbors.size() > 0 || current.last_index_neighbors.size() > 0;
+    if (depth >= 1 && (adjacent_to_first_stroke_at_index_0 || adjacent_to_first_stroke_at_last_idx)) {
+        if ()
+        return true;
+    } else if (can_move_forward) {
+
+    } else {
+        return std::vector<Eigen::Vector2f>();
+    }
+}
+
+std::vector<SegmentedStroke> Triangulate::segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes) {
+    // go along each stroke and see if it is intersected at each point
+    std::vector<IntersectionResult> results;
+    for (int i = 0; i < strokes.size(); i++) {
+        for (int j = i + 1; j < strokes.size(); j++) {
+            auto results_to_add = findIntersections(strokes[i],i, strokes[j], j);
+            results.insert(results.end(), results_to_add.begin(), results_to_add.end());
+        }
+    }
+
+    std::vector<SegmentedStroke> segmented_strokes;
+    for (int stroke_idx = 0; stroke_idx < strokes.size(); stroke_idx++) {
+        SegmentedStroke segmented;
+        for (int i = 0; i < strokes[stroke_idx].size(); i++) {
+            segmented.points.push_back(strokes[stroke_idx][i]);
+            for (int result_idx = 0; result_idx < results.size(); result_idx++) {
+                bool at_intersection_A = (stroke_idx == results[result_idx].A_stroke_idx && i == results[result_idx].A_point_idx);
+                bool at_intersection_B = (stroke_idx == results[result_idx].B_stroke_idx && i == results[result_idx].B_point_idx);
+                if (at_intersection_A || at_intersection_B) {
+                    segmented_strokes.push_back(segmented);
+                    segmented = SegmentedStroke();
+                }
+            }
+        }
+        if (segmented.points.size() > 0) {
+            segmented_strokes.push_back(segmented);
+            segmented = SegmentedStroke();
+        }
+    }
+
+    // go through the segmented strokes and set their neighbors
+    for (int i = 0; i < segmented_strokes.size(); i++) {
+        for (int j = 0; j < segmented_strokes.size(); j++) {
+            if (j != i) {
+                const auto& A = segmented_strokes[i].points;
+                const auto& B = segmented_strokes[j].points;
+                if ((A[0] - B[0]).norm() < SAME_POINT_THRESHOLD) {
+                    segmented_strokes[i].index_0_neighbors.push_back({j, true});
+                } else if ((A[0] - B[B.size() - 1]).norm() < SAME_POINT_THRESHOLD) {
+                    segmented_strokes[i].index_0_neighbors.push_back({j, false});
+                } else if ((A[A.size() - 1] - B[0]).norm() < SAME_POINT_THRESHOLD) {
+                    segmented_strokes[i].last_index_neighbors.push_back({j, true});
+                } else if ((A[A.size() - 1] - B[B.size() - 1]).norm() < SAME_POINT_THRESHOLD) {
+                    segmented_strokes[i].last_index_neighbors.push_back({j, false});
+                }
+            }
+        }
+    }
+
+    // remove any segmented strokes without neighbors on both sides
+    int i = 0;
+    while (i < segmented_strokes.size()) {
+        if (segmented_strokes[i].last_index_neighbors.size() == 0 || segmented_strokes[i].index_0_neighbors.size() == 0) {
+            segmented_strokes.erase(segmented_strokes.begin() + i);
+        } else {
+            i++;
+        }
+    }
+
+    return segmented_strokes;
+}
 
 void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
-    Polygon_2 polygon;
-    std::vector<Eigen::Vector2f> boundary_points;
 
-    // turn the boundary lines into a polygon that we can pass to CGAL
-    // TODO: Process lines so that the entire boundary is a single line with no
-    // separate intersecting segments. This will result in a better triangulation
-    // without any bowtie-like shapes.
-    for (int i = 0; i < sketch.getBoundaryStrokes().size(); i++) {
-
-        // ensure that the boundary is closed by connecting the later endpoint of this line to the
-        // closest endpoint of another boundary line
-        Eigen::Vector2f curr_endpoint = sketch.getBoundaryStrokes()[i][sketch.getBoundaryStrokes()[i].size() - 1];
-        float min_distance = INFINITY;
-        Eigen::Vector2f best_endpoint;
-        for (int j = 0; j < sketch.getBoundaryStrokes().size(); j++) {
-            float distance = (sketch.getBoundaryStrokes()[j][0] - curr_endpoint).norm();
-            if (distance > 0 && distance < min_distance) {
-                min_distance = distance;
-                best_endpoint = sketch.getBoundaryStrokes()[j][0];
-            }
-            distance = (sketch.getBoundaryStrokes()[j][sketch.getBoundaryStrokes()[j].size() - 1] - curr_endpoint).norm();
-            if (distance > 0 && distance < min_distance) {
-                min_distance = distance;
-                best_endpoint = sketch.getBoundaryStrokes()[j][sketch.getBoundaryStrokes()[j].size() - 1];
-            }
+    const auto &strokes = sketch.getBoundaryStrokes();
+    const auto segmented_boundary_strokes = segmentBoundaryStrokes(strokes);
+    int first_idx = 0;
+    std::set<int> used_strokes;
+    while (used_strokes.size() < strokes.size()) {
+        Polygon_2 polygon;
+        std::vector<int> stroke_sequence;
+        std::vector<Eigen::Vector2f> boundary;
+        findPath(segmented_boundary_strokes, first_idx, boundary, stroke_sequence);
+        for (int i = 0; i < stroke_sequence.size(); i++) {
+            used_strokes.insert(stroke_sequence[i]);
         }
 
-        // once the best endpoint is found, make sure that the last 5 points
-        // on the line are not closer for some reason
-
-        for (int j = 0; j < sketch.getBoundaryStrokes()[i].size() - 2; j++) {
-            polygon.push_back(Point(sketch.getBoundaryStrokes()[i][j].x(), sketch.getBoundaryStrokes()[i][j].y()));
-            boundary_points.push_back(sketch.getBoundaryStrokes()[i][j]);
+        // find the next unused stroke
+        for (int i = 0; i < strokes.size(); i++) {
+            if (used_strokes.find(i) == used_strokes.end()) { first_idx = i; }
         }
 
+        // if the path was incomplete, then we should not use it
+        if (boundary.size() == 0) { continue; }
 
-        polygon.push_back(Point(best_endpoint.x(), best_endpoint.y()));
-        boundary_points.push_back(best_endpoint);
-    }
-
-    float length = 0;
-    for (int i = 0; i < boundary_points.size() - 1; i++) {
-        length += (boundary_points[i] - boundary_points[i+1]).norm();
-    }
-    sketch.setBoundaryLength(length);
-
-    /*
-    // test polygon
-    polygon.push_back(Point(0,0));
-    polygon.push_back(Point(0,100));
-    polygon.push_back(Point(100,100));
-    polygon.push_back(Point(100,0));
-    */
-
-
-    CDT &cdt = mesh.getCDT();
-
-    cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
-
-    CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
-
-    // mark which faces are actually inside the constraints. If we don't do this step
-    // then the entire convex hull will be triangulated.
-    std::map<Face_handle, FaceInfo2> domain_info;
-    for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-        domain_info[it] = FaceInfo2();
-    }
-    mark_domains(cdt, domain_info);
-
-    // NOTE: a face is valid if it is within the constraints and it is not an infinite face
-
-    // get rid of artifacts by recursively getting rid of all faces that have 1 neighbor.
-    // this will result in a mesh with much fewer artifacts
-    removeArtifacts(cdt, domain_info);
-
-    // initialize mesh struct
-    std::map<Face_handle, bool> info;
-    for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-        if (!cdt.is_infinite(it) && domain_info[it].in_domain()) {
-            info[it] = true;
-        } else {
-            info[it] = false;
+        // get the length of the boundary
+        float length = 0;
+        for (int i = 0; i < boundary.size() - 1; i++) {
+            length += (boundary[i] - boundary[i+1]).norm();
         }
-    }
-    mesh.init(info);
+        sketch.setBoundaryLength(length);
 
-    // save the 2D triangulation to an obj so that it can be checked
-    QFile file("triangulation.obj");
-    if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
-        QTextStream stream(&file);
-        char buf[512];
+        CDT &cdt = mesh.getCDT();
+
+        cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
+
+        CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
+
+        // mark which faces are actually inside the constraints. If we don't do this step
+        // then the entire convex hull will be triangulated.
+        std::map<Face_handle, FaceInfo2> domain_info;
         for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-            if (domain_info[it].in_domain()) {
-                std::sprintf(buf, "v %f %f %f", it->vertex(0)->point().x(), it->vertex(0)->point().y(), 0.0f);
-                stream << buf << endl;
-                std::sprintf(buf, "v %f %f %f", it->vertex(1)->point().x(), it->vertex(1)->point().y(), 0.0f);
-                stream << buf << endl;
-                std::sprintf(buf, "v %f %f %f", it->vertex(2)->point().x(), it->vertex(2)->point().y(), 0.0f);
-                stream << buf << endl;
-            }
+            domain_info[it] = FaceInfo2();
         }
-        int count = 1;
+        mark_domains(cdt, domain_info);
+
+        // NOTE: a face is valid if it is within the constraints and it is not an infinite face
+
+        // get rid of artifacts by recursively getting rid of all faces that have 1 neighbor.
+        // this will result in a mesh with much fewer artifacts
+        removeArtifacts(cdt, domain_info);
+
+        // initialize mesh struct
+        std::map<Face_handle, bool> info;
         for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-            if (domain_info[it].in_domain()) {
-                std::sprintf(buf, "f %d %d %d", count, count + 1, count + 2);
-                stream << buf << endl;
-                count += 3;
+            if (!cdt.is_infinite(it) && domain_info[it].in_domain()) {
+                info[it] = true;
+            } else {
+                info[it] = false;
             }
         }
+        mesh.addSurfaceToMesh(info);
     }
 }

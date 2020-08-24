@@ -42,9 +42,7 @@ float Mesh::calcEFGArea(const Face *f, const Face *g) {
 // This method uses the CGAL cdt data structure and turns it into a data structure that is
 // easier to work with and has face data structures that store some useful information that
 // the CGAL cdt does not have, such as an index for each face.
-void Mesh::init(std::map<Face_handle, bool> &info) {
-    int next_face_index = 0;
-    int next_vertex_index = 0;
+void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info) {
     int num_faces = 0;
     int num_verts = 0;
     float total_area = 0;
@@ -69,6 +67,7 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
 
             for (int i = 0; i < 3; i++) {
                 if (visited_vertices.find(it->vertex(i)) == visited_vertices.end()) {
+                    // figure out if this is a vertex on the boundary of the surface
                     std::shared_ptr<Vertex> v = std::make_shared<Vertex>();
                     auto face_circulator = it->vertex(i)->incident_faces();
                     auto face_start = it->vertex(i)->incident_faces();
@@ -84,6 +83,7 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
                         vertex_circulator++;
                     } while (vertex_circulator != vertex_start);
 
+                    // store information in the vertex
                     v->coords = Eigen::Vector2f(it->vertex(i)->point().x(), it->vertex(i)->point().y());
                     v->index = next_vertex_index;
                     v->height = 0;
@@ -118,9 +118,9 @@ void Mesh::init(std::map<Face_handle, bool> &info) {
         });
     });
 
-    m_num_triangles = num_faces;
-    m_total_area = total_area;
-    m_num_vertices = num_verts;
+    m_num_triangles += num_faces;
+    m_total_area += total_area;
+    m_num_vertices += num_verts;
 }
 
 void Mesh::forEachTriangle(const std::function<void(std::shared_ptr<Face>)> &func) {

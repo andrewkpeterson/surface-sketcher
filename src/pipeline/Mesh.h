@@ -53,7 +53,7 @@ struct Face {
 class Mesh
 {
 public:
-    void init(std::map<Face_handle, bool> &info);
+    void addSurfaceToMesh(std::map<Face_handle, bool> &info);
 
     void forEachTriangle(const std::function<void(std::shared_ptr<Face>)> &func);
     void forEachPairOfNeighboringTriangles(const std::function<void(Face*, Face*)> &func);
@@ -88,9 +88,11 @@ private:
     std::set<Face*> edge_faces;
     std::set<std::shared_ptr<Vertex>> edge_vertices;
 
-    int m_num_triangles;
-    int m_num_vertices;
-    float m_total_area;
+    int m_num_triangles = 0;
+    int m_num_vertices = 0;
+    float m_total_area = 0;
+    int next_face_index = 0;
+    int next_vertex_index = 0;
 
     float m_boundary_length;
 

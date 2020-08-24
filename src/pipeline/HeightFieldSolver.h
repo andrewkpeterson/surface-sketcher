@@ -10,17 +10,17 @@ class HeightFieldSolver
 public:
     static void solveForHeightField(Mesh &mesh, Sketch &sketch);
 
-    // the cuvature will be consistently underestimated without regularizing the radius of the fitted circle
-    static constexpr float NORMAL_CURVATURE_MU = 2e-5;
+    // if the radius of the estimated circle is not regualrized, we will underestimate the normal curvature
+    static constexpr double NORMAL_CURVATURE_MU = 1e-6; // this was 2e-5 in the paper
 
 private:
 
     static void initializeCurvatureValues(Sketch &sketch);
     static void estimateCurvatureValues(Mesh &mesh, Sketch &sketch);
     static void estimateCurvatureValuesHelper(Mesh &mesh, Sketch &sketch,
-                                              std::vector<Sketch::Stroke> &strokes, bool convex);
+                                              const std::vector<Sketch::Stroke> &strokes, bool convex);
     static void estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Sketch &sketch,
-                                              std::vector<Sketch::Stroke> &strokes, bool convex);
+                                              const std::vector<Sketch::Stroke> &strokes, bool convex);
     static float fitCircle(Mesh &mesh, Sketch &sketch, std::vector<Eigen::Vector2f> points);
 
     static void minimizeELambda(Mesh &mesh, const Sketch &sketch);

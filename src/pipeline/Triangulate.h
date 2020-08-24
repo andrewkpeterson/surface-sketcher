@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <map>
+#include <tuple>
 
 struct FaceInfo2
 {
@@ -46,6 +47,24 @@ typedef CDT::Face_handle                                          Face_handle;
 typedef CDT::Vertex_handle                                        Vertex_handle;
 
 
+struct IntersectionResult {
+    int A_stroke_idx;
+    int B_stroke_idx;
+    int A_point_idx;
+    int B_point_idx;
+    float dist;
+};
+
+struct Neighbor {
+    int neighbor_idx;
+    bool adjacent_to_index_0_of_neighbor;
+};
+
+struct SegmentedStroke {
+    std::vector<Eigen::Vector2f> points;
+    std::vector<Neighbor> last_index_neighbors;
+    std::vector<Neighbor> index_0_neighbors;
+};
 
 class Triangulate {
 public:
@@ -54,8 +73,20 @@ public:
 private:
     static void mark_domains(CDT& cdt, std::map<Face_handle, FaceInfo2> &m);
     static void mark_domains(CDT& ct, Face_handle start, int index, std::list<CDT::Edge>& border, std::map<Face_handle, FaceInfo2> &m);
+    static std::vector<IntersectionResult> findIntersections(const std::vector<Eigen::Vector2f> &A, int A_stroke_idx,
+                                                             const std::vector<Eigen::Vector2f> &B, int B_stroke_idx);
+    static std::vector<IntersectionResult> intersectionExists(const std::vector<Eigen::Vector2f> &A, const std::vector<Eigen::Vector2f> &B);
+    static void findPath(const std::vector<SegmentedStroke> &strokes, int first_stroke, std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence);
+    static std::vector<Eigen::Vector2f> findPathHelper(const std::vector<SegmentedStroke> &strokes,
+                                                       int first_stroke, int current_stroke, std::vector<Eigen::Vector2f> boundary, std::vector<int> &strokes_sequence,
+                                                       std::set<int> used_strokes, bool arrived_at_current_stroke_at_index_0, int depth);
+    static void addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor);
+    static std::vector<SegmentedStroke> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
     static constexpr float FINENESS = .1; //.1 normally, .2 for coarse
     static constexpr float CRITERIA_PARAM = .001; //.001 normally
+    static constexpr float SAME_POINT_THRESHOLD = .001;
+    static constexpr float SAME_INTERSECTION_THRESHOLD = .1;
+    static constexpr float LINE_TAIL_LENGTH = .2; // this will need to be tuned
 };
 
 #endif // TRIANGULATE_H
