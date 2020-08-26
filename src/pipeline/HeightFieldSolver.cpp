@@ -150,7 +150,7 @@ void HeightFieldSolver::estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Ske
             // don't actually need to take the height of the surface into account when initializing the center.
             double r = 10.0;
             double c1 = convex ? -.1 : .1; // c1 is the "up and down" direction, so this is the only coordinate that actually needs to be controlled in this way
-            double c2 = 0; //convex ? -.1 : .1;
+            double c2 = convex ? -.1 : .1;
 
             Problem problem;
 
@@ -167,8 +167,8 @@ void HeightFieldSolver::estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Ske
             //options.minimizer_progress_to_stdout = true;
             Solver::Summary summary;
             Solve(options, &problem, &summary);
-            std::cout << "points: " << N << " " << (convex ? "convex " : "concave ") << "curvature at " << "(" << center_point->coords3d().x() << "," << center_point->coords3d().y() << "): " <<
-                         (convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
+            //std::cout << "points: " << N << " " << (convex ? "convex " : "concave ") << "curvature at " << "(" << center_point->coords3d().x() << "," << center_point->coords3d().y() << "): " <<
+                         //(convex ? -(1.0 / r) : (1.0 / r)) << std::endl;
 
             // Update curvature values for segment and points. Remember that we are measuring normal curvature!
             // Convex sections (i.e. "Hills") have negative normal curvature because the unit tangent vector
@@ -430,6 +430,8 @@ void HeightFieldSolver::optimizeHeightFieldHelper(Mesh &mesh, const Sketch &sket
     // add coefficients to E_bdry (i.e. boundary conditions)
     addCoefficientsForEBoundary(mesh, sketch, m, b);
 
+    addCoefficientsForEContour(mesh, sketch, m, b);
+
 }
 
 void HeightFieldSolver::computeAndAddCoefficientsForEMatch(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b,
@@ -651,135 +653,47 @@ void HeightFieldSolver::addCoefficientsForEBoundary(Mesh &mesh, const Sketch &sk
         std::pair<int, int> p(v->index, v->index);
         const float val = 2 * BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT / sketch.getBoundaryLength();
         addToSparseMap(p, val, m);
-        b(v->index) += 2 * BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT * BOUNDARY_HEIGHT / sketch.getBoundaryLength();
+        b(v->index) += 2 * BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT * v->boundary_height_constraint / sketch.getBoundaryLength();
     });
 
     addCoefficientsForRegualrityConstraint(mesh, sketch, m);
 }
 
 void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m) {
-    auto &edge_faces = mesh.getEdgeFaces();
-    auto &edge_vertices = mesh.getEdgeVertices();
     std::set<std::shared_ptr<Vertex>> visited_vertices;
-    std::map<std::shared_ptr<Vertex>, int> finished_vertices;
     int count = 0;
-    while (count < edge_vertices.size()) {
-        int count_at_beginning = count;
-        for (auto it = edge_faces.begin(); it != edge_faces.end(); it++) {
-            Face *middle_face = *it;
-            std::shared_ptr<Vertex> middle_vertex;
-            std::set<Face*> covered_faces;
-            std::set<std::shared_ptr<Vertex>> covered_vertices;
-            covered_faces.insert(middle_face);
-            bool found_vertex = false;
-            for (int vert_idx = 0; vert_idx < 3; vert_idx++) {
-                std::shared_ptr<Vertex> v = middle_face->vertices[vert_idx];
-                if (edge_vertices.find(v) != edge_vertices.end() && visited_vertices.find(v) == visited_vertices.end()) {
-                    middle_vertex = v;
-                    covered_vertices.insert(v);
-                    found_vertex = true;
+    mesh.forEachBoundaryVertex([&](std::shared_ptr<Vertex> v) {
+        std::shared_ptr<Vertex> backward_v = nullptr;
+        std::shared_ptr<Vertex> forward_v = nullptr;
+        for (int i = 0; i < v->faces.size(); i++) {
+            for (int j = 0; j < 3; j++) {
+                if (v->faces[i]->vertices[j] != v) {
+                    backward_v = v->faces[i]->vertices[j];
                     break;
                 }
             }
+        }
 
-            if (!found_vertex) { continue; }
-
-            // find forward face
-            Face *forward_face = nullptr;
-            for (int i = 0; i < middle_face->neighbors.size(); i++) {
-                if (faceContainsEdgeVertex(mesh, middle_face->neighbors[i]) && covered_faces.find(middle_face->neighbors[i]) == covered_faces.end()) {
-                    forward_face = middle_face->neighbors[i];
-                    covered_faces.insert(forward_face);
+        for (int i = 0; i < v->faces.size(); i++) {
+            for (int j = 0; j < 3; j++) {
+                if (v->faces[i]->vertices[j] != v && v->faces[i]->vertices[j] != backward_v) {
+                    forward_v = v->faces[i]->vertices[j];
                     break;
                 }
             }
-            assert(forward_face != nullptr);
-
-            std::shared_ptr<Vertex> forward_v = nullptr;
-            while (forward_v == nullptr) {
-                if (getEdgeVertexNotInSet(mesh,forward_face,covered_vertices) != nullptr) {
-                    forward_v = getEdgeVertexNotInSet(mesh,forward_face,covered_vertices);
-                } else {
-                    for (int i = 0; i < forward_face->neighbors.size(); i++) {
-                        if (faceContainsEdgeVertex(mesh, forward_face->neighbors[i]) && covered_faces.find(forward_face->neighbors[i]) == covered_faces.end()) {
-                            forward_face = forward_face->neighbors[i];
-                            covered_faces.insert(forward_face);
-                            break;
-                        }
-                    }
-                }
-            }
-            covered_vertices.insert(forward_v);
-
-            // find backward face
-            Face *backward_face = nullptr;
-            for (int i = 0; i < middle_face->neighbors.size(); i++) {
-                if (faceContainsEdgeVertex(mesh, middle_face->neighbors[i]) && covered_faces.find(middle_face->neighbors[i]) == covered_faces.end()) {
-                    backward_face = middle_face->neighbors[i];
-                    covered_faces.insert(backward_face);
-                    break;
-                }
-            }
-            assert(backward_face != nullptr);
-
-            std::shared_ptr<Vertex> backward_v = nullptr;
-            while (backward_v == nullptr) {
-                if (getEdgeVertexNotInSet(mesh,backward_face,covered_vertices) != nullptr) {
-                    backward_v = getEdgeVertexNotInSet(mesh,backward_face,covered_vertices);
-                } else {
-                    for (int i = 0; i < backward_face->neighbors.size(); i++) {
-                        if (faceContainsEdgeVertex(mesh, backward_face->neighbors[i]) && covered_faces.find(backward_face->neighbors[i]) == covered_faces.end()) {
-                            backward_face = backward_face->neighbors[i];
-                            covered_faces.insert(backward_face);
-                            break;
-                        }
-                    }
-                }
-            }
-            covered_vertices.insert(backward_v);
-
-            // if the forward/backward vertex is not visited, then add to the matrix
-            if (visited_vertices.find(forward_v) == visited_vertices.end()) {
-                addCoefficientsForRegualrityConstraintHelper(mesh, sketch, m, middle_vertex, forward_v);
-                //std::cout << edge_vertices.size() << " " << count << std::endl;
-                count++;
-            }
-
-            if (visited_vertices.find(backward_v) == visited_vertices.end()) {
-                addCoefficientsForRegualrityConstraintHelper(mesh, sketch, m, middle_vertex, backward_v);
-                //std::cout << edge_vertices.size() << " " << count << std::endl;
-                count++;
-            }
-            visited_vertices.insert(middle_vertex);
         }
-        if (count - count_at_beginning == 0) {
-            std::cout << "WARNING: we are missing some boundary vertices in the reguarlity constraint" << std::endl;
-            std::cout << count << " out of " << edge_vertices.size() << std::endl;
-            break;
+        if (visited_vertices.find(backward_v) == visited_vertices.end()) {
+            addCoefficientsForRegualrityConstraintHelper(mesh, sketch, m, v, backward_v);
+            count++;
         }
-    }
+        if (visited_vertices.find(forward_v) == visited_vertices.end()) {
+            addCoefficientsForRegualrityConstraintHelper(mesh, sketch, m, v, forward_v);
+            count++;
+        }
+        visited_vertices.insert(v);
+    });
+    std::cout << mesh.getEdgeVertices().size() << " " << count << std::endl;
 }
-
-bool HeightFieldSolver::faceContainsEdgeVertex(Mesh &mesh, Face *f) {
-    auto &edge_vertices = mesh.getEdgeVertices();
-    for (int i = 0; i < 3; i++) {
-        if (edge_vertices.find(f->vertices[i]) != edge_vertices.end()) {
-            return true;
-        }
-    }
-    return false;
-}
-
-std::shared_ptr<Vertex> HeightFieldSolver::getEdgeVertexNotInSet(Mesh &mesh, Face *f, const std::set<std::shared_ptr<Vertex>> &set) {
-    auto &edge_vertices = mesh.getEdgeVertices();
-    for (int i = 0; i < 3; i++) {
-        if (edge_vertices.find(f->vertices[i]) != edge_vertices.end() && set.find(f->vertices[i]) == set.end()) {
-            return f->vertices[i];
-        }
-    }
-    return nullptr;
-}
-
 
 void HeightFieldSolver::addCoefficientsForRegualrityConstraintHelper(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, std::shared_ptr<Vertex> v1,
                                                                      std::shared_ptr<Vertex> v2) {
@@ -797,4 +711,153 @@ void HeightFieldSolver::addCoefficientsForRegualrityConstraintHelper(Mesh &mesh,
     std::pair<int, int> p4(v2->index, v1->index);
     addToSparseMap(p4, -val, m);
 
+}
+
+void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, Eigen::VectorXd &b) {
+    const auto &boundary_vertices = mesh.getEdgeVertices();
+    const auto &boundary_faces = mesh.getEdgeFaces();
+    float boundary_area = 0;
+    for (auto it = boundary_faces.begin(); it != boundary_faces.end(); it++) {
+        boundary_area += (*it)->area;
+    }
+
+    mesh.forEachBoundaryTriangle([&](Face *f) {
+        if (!f->contour) { return; }
+        std::cout << "contour" << std::endl;
+
+        std::shared_ptr<Vertex> interior_vertex = nullptr;
+        int count = 0;
+        for (int i = 0; i < 3; i++) {
+            if (boundary_vertices.find(f->vertices[i]) == boundary_vertices.end()) {
+                interior_vertex = f->vertices[i];
+                count++;
+            }
+        }
+        assert(count == 1);
+        assert(interior_vertex != nullptr);
+
+        // calculate the normal vector to the boundary, which lies in the drawing plane
+        std::shared_ptr<Vertex> b1;
+        std::shared_ptr<Vertex> b2;
+        if (interior_vertex == f->vertices[0]) {
+            b1 = f->vertices[1];
+            b2 = f->vertices[2];
+        } else if (interior_vertex == f->vertices[1]) {
+            b1 = f->vertices[0];
+            b2 = f->vertices[2];
+        } else {
+            b1 = f->vertices[0];
+            b2 = f->vertices[1];
+        }
+
+        Eigen::Matrix2f mat;
+        mat << 0, -1,
+               1, 0;
+        Eigen::Matrix2f mat_reverse;
+        mat_reverse << 0, 1,
+                      -1, 0;
+
+        Eigen::Vector2f edge = b2->coords - b1->coords;
+        Eigen::Vector2f N_bdry2D = (mat * edge).dot(b1->coords - interior_vertex->coords) > 0 ? mat * edge : mat_reverse * edge;
+
+        Eigen::Vector3f N_bdry(N_bdry2D.x(), N_bdry2D.y(), 0);
+
+        //Eigen::Vector3f g = (2 * mesh.calculateVertexNormal(interior_vertex) + N_bdry.normalized()).normalized();
+        Eigen::Vector3f g = N_bdry.normalized();
+        std::shared_ptr<Vertex> i = f->vertices[0];
+        std::shared_ptr<Vertex> j = f->vertices[1];
+        std::shared_ptr<Vertex> k = f->vertices[2];
+
+        Eigen::Vector2f ki = i->coords - k->coords;
+        Eigen::Vector2f ki_perp = (mat * ki).dot(j->coords - i->coords) > 0 ? mat * ki : mat_reverse * ki;
+
+        Eigen::Vector2f ij = j->coords - i->coords;
+        Eigen::Vector2f ij_perp = (mat * ij).dot(k->coords - j->coords) > 0 ? mat * ij : mat_reverse * ij;
+
+        Eigen::Vector2f C_ik = (ki_perp / (2.0 * f->area));
+        Eigen::Vector2f C_ji = (ij_perp / (2.0 * f->area));
+
+        Eigen::Vector2f gradient2D = C_ik * (j->height - i->height) + C_ji * (k->height - i->height);
+
+        // the bigger this is, the closer the boundary faces will be to being orthogonal to the drawing plane
+        // We need to normalize the normal created from the gradient of the height field because we are
+        // compairing it to the target face normal g
+        float normal_from_gradient_norm = Eigen::Vector3f(-gradient2D.x(), -gradient2D.y(), 1).norm();
+
+        float Kx_i = -(-C_ik.x() - C_ji.x()) / normal_from_gradient_norm;
+        float Ky_i = -(-C_ik.y() - C_ji.y()) / normal_from_gradient_norm;
+        float Kx_j = -C_ik.x() / normal_from_gradient_norm;
+        float Ky_j = -C_ik.y() / normal_from_gradient_norm;
+        float Kx_k = -C_ji.x() / normal_from_gradient_norm;
+        float Ky_k = -C_ji.y() / normal_from_gradient_norm;
+
+        float constant_x = -g.x();
+        float constant_y = -g.y();
+
+        //std::cout << constant << std::endl;
+
+        float mult = 2 * f->area / boundary_area * CONTOUR_CONSTRAINT_WEIGHT;
+
+        {
+            std::pair<int, int> p1(i->index, i->index);
+            addToSparseMap(p1, mult * Kx_i * Kx_i, m);
+            std::pair<int, int> p2(i->index, j->index);
+            addToSparseMap(p2, mult * Kx_i * Kx_j, m);
+            std::pair<int, int> p3(i->index, k->index);
+            addToSparseMap(p3, mult * Kx_i * Kx_k, m);
+            b(i->index) += mult * Kx_i * constant_x;
+        }
+
+        {
+            std::pair<int, int> p1(j->index, i->index);
+            addToSparseMap(p1, mult * Kx_j * Kx_i, m);
+            std::pair<int, int> p2(j->index, j->index);
+            addToSparseMap(p2, mult * Kx_j * Kx_j, m);
+            std::pair<int, int> p3(j->index, k->index);
+            addToSparseMap(p3, mult * Kx_j * Kx_k, m);
+            b(j->index) += mult * Kx_j * constant_x;
+        }
+
+        {
+            std::pair<int, int> p1(k->index, i->index);
+            addToSparseMap(p1, mult * Kx_k * Kx_i, m);
+            std::pair<int, int> p2(k->index, j->index);
+            addToSparseMap(p2, mult * Kx_k * Kx_j, m);
+            std::pair<int, int> p3(k->index, k->index);
+            addToSparseMap(p3, mult * Kx_k * Kx_k, m);
+            b(k->index) += mult * Kx_k * constant_x;
+        }
+
+        {
+            std::pair<int, int> p1(i->index, i->index);
+            addToSparseMap(p1, mult * Ky_i * Ky_i, m);
+            std::pair<int, int> p2(i->index, j->index);
+            addToSparseMap(p2, mult * Ky_i * Ky_j, m);
+            std::pair<int, int> p3(i->index, k->index);
+            addToSparseMap(p3, mult * Ky_i * Ky_k, m);
+            b(i->index) += mult * Ky_i * constant_y;
+        }
+
+        {
+            std::pair<int, int> p1(j->index, i->index);
+            addToSparseMap(p1, mult * Ky_j * Ky_i, m);
+            std::pair<int, int> p2(j->index, j->index);
+            addToSparseMap(p2, mult * Ky_j * Ky_j, m);
+            std::pair<int, int> p3(j->index, k->index);
+            addToSparseMap(p3, mult * Ky_j * Ky_k, m);
+            b(j->index) += mult * Ky_j * constant_y;
+        }
+
+        {
+            std::pair<int, int> p1(k->index, i->index);
+            addToSparseMap(p1, mult * Ky_k * Ky_i, m);
+            std::pair<int, int> p2(k->index, j->index);
+            addToSparseMap(p2, mult * Ky_k * Ky_j, m);
+            std::pair<int, int> p3(k->index, k->index);
+            addToSparseMap(p3, mult * Ky_k * Ky_k, m);
+            b(k->index) += mult * Ky_k * constant_y;
+        }
+
+
+    });
 }

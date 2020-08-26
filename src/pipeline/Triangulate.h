@@ -17,6 +17,9 @@
 #include <QTextStream>
 #include <map>
 #include <tuple>
+#include <CGAL/Simple_cartesian.h>
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/subdivision_method_3.h>
 
 struct FaceInfo2
 {
@@ -45,6 +48,9 @@ typedef CGAL::Polygon_2<K>                                        Polygon_2;
 typedef CGAL::Delaunay_mesh_size_criteria_2<CDT>                  Criteria;
 typedef CDT::Face_handle                                          Face_handle;
 typedef CDT::Vertex_handle                                        Vertex_handle;
+
+typedef CGAL::Simple_cartesian<double>         Kernel;
+typedef CGAL::Surface_mesh<Kernel::Point_3>    PolygonMesh;
 
 
 struct IntersectionResult {
@@ -76,14 +82,15 @@ private:
     static std::vector<IntersectionResult> findIntersections(const std::vector<Eigen::Vector2f> &A, int A_stroke_idx,
                                                              const std::vector<Eigen::Vector2f> &B, int B_stroke_idx);
     static std::vector<IntersectionResult> intersectionExists(const std::vector<Eigen::Vector2f> &A, const std::vector<Eigen::Vector2f> &B);
-    static void makeBoundary(const std::vector<SegmentedStroke> &strokes, int first_stroke, std::vector<Eigen::Vector2f> &boundary, std::vector<int> &strokes_sequence);
+    static std::vector<Eigen::Vector2f> makeBoundary(const std::vector<SegmentedStroke> &strokes, const std::set<int> invalid_strokes);
     static void addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor);
-    static std::vector<SegmentedStroke> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
-    static constexpr float FINENESS = .1; //.1 normally, .2 for coarse
+    static std::pair<std::vector<SegmentedStroke>, std::set<int>> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
+    static constexpr float FINENESS = .04; //.1 normally, .2 for coarse
     static constexpr float CRITERIA_PARAM = .001; //.001 normally
-    static constexpr float SAME_POINT_THRESHOLD = .001;
-    static constexpr float SAME_INTERSECTION_THRESHOLD = .1;
-    static constexpr float LINE_TAIL_LENGTH = .2; // this will need to be tuned
+    static constexpr float CONNECTION_THRESHOLD = .07; //.08
+    static constexpr float SAME_POINT_THRESHOLD = .03; //.03
+    static constexpr float SAME_INTERSECTION_THRESHOLD = .8;
+    static constexpr float NUMBER_OF_BOUNDARY_POINTS_TO_SKIP = 6;
 };
 
 #endif // TRIANGULATE_H

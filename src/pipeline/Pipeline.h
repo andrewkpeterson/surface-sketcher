@@ -15,7 +15,7 @@
 class Pipeline
 {
 public:
-
+    /*
     static void runPipelineSVG(std::string svg_file, std::string obj_file) {
 
         std::cout << "Reading in sketch..." << std::endl;
@@ -32,7 +32,7 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Initializing curvature direction field..." << std::endl;
-        //DirectionFieldInitializer::initializeDirectionField(mesh, sketch);
+        DirectionFieldInitializer::initializeDirectionField(mesh, sketch);
         std::cout << "DONE" << std::endl;
 
         std::cout << "Optimizing BendField energy of curvature direction field..." << std::endl;
@@ -45,6 +45,7 @@ public:
         std::cout << "Writing result mesh to file" << std::endl;
         OBJWriter::writeOBJ(mesh, obj_file, "final_directions.txt");
     }
+    */
 
     static void runPipelineScribble(const SketchData &data) {
 
@@ -90,7 +91,7 @@ public:
         std::cout << "DONE" << std::endl;
 
         std::cout << "Writing result mesh to file" << std::endl;
-        OBJWriter::writeOBJ(mesh, "result.obj", "final_directions.txt");
+        //OBJWriter::writeOBJ(mesh, "result.obj", "final_directions.txt");
         std::cout << "DONE" << std::endl;
     }
 

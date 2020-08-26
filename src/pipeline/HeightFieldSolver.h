@@ -11,7 +11,8 @@ public:
     static void solveForHeightField(Mesh &mesh, Sketch &sketch);
 
     // if the radius of the estimated circle is not regualrized, we will underestimate the normal curvature
-    static constexpr double NORMAL_CURVATURE_MU = 1e-6; // this was 2e-5 in the paper
+    // and the surface curvature will vanish
+    static constexpr double NORMAL_CURVATURE_MU = 2e-5; // 1e-6 // this was 2e-5 in the paper
 
 private:
 
@@ -67,7 +68,7 @@ private:
                                                              std::shared_ptr<Vertex> v1, std::shared_ptr<Vertex> v2);
     static bool faceContainsEdgeVertex(Mesh &mesh, Face *f);
     static std::shared_ptr<Vertex> getEdgeVertexNotInSet(Mesh &mesh, Face *f, const std::set<std::shared_ptr<Vertex> > &set);
-
+    static void addCoefficientsForEContour(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int, int>, double> &m, Eigen::VectorXd &b);
 
     static inline void addToSparseMap(const std::pair<int, int> &p, double c, std::map<std::pair<int,int>, double> &m) {
         if (m.find(p) == m.end()) {
@@ -77,15 +78,17 @@ private:
         }
     }
 
-    static constexpr int NUM_ITERATIONS = 20;
+    static constexpr int NUM_ITERATIONS = 8;
     static constexpr float INITIAL_CURVATURE_MAGNITUDE = 1;
 
     static constexpr float CURVATURE_MAGNITUDE_SMOOTHNESS_BETA = .01;
-    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1e3; // keep an eye on this!
+    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 10; // keep an eye on this!
 
     static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 1e6; // omega_0, changes for different cases
     static constexpr float BOUNDARY_REGULARITY_CONSTRAINT_WEIGHT = 1; // omega_1, same for all cases
     static constexpr float BOUNDARY_HEIGHT = 0;
+
+    static constexpr float CONTOUR_CONSTRAINT_WEIGHT = 1e8;
 };
 
 #endif // HEIGHTFIELDSOLVER_H

@@ -15,7 +15,8 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     scribbleArea = new ScribbleArea;
-    setCentralWidget(scribbleArea);
+    ui->window->layout()->addWidget(scribbleArea);
+    //setCentralWidget(scribbleArea);
 
     createActions();
     createMenus();
@@ -80,18 +81,7 @@ void MainWindow::penWidth()
 
 void MainWindow::about()
 {
-    QMessageBox::about(this, tr("About Scribble"),
-            tr("<p>The <b>Scribble</b> example shows how to use QMainWindow as the "
-               "base widget for an application, and how to reimplement some of "
-               "QWidget's event handlers to receive the events generated for "
-               "the application's widgets:</p><p> We reimplement the mouse event "
-               "handlers to facilitate drawing, the paint event handler to "
-               "update the application and the resize event handler to optimize "
-               "the application's appearance. In addition we reimplement the "
-               "close event handler to intercept the close events before "
-               "terminating the application.</p><p> The example also demonstrates "
-               "how to use QPainter to draw an image in real time, as well as "
-               "to repaint widgets.</p>"));
+
 }
 
 void MainWindow::createActions()
@@ -211,4 +201,41 @@ bool MainWindow::saveFile(const QByteArray &fileFormat)
     } else {
         return scribbleArea->saveImage(fileName, fileFormat);
     }
+}
+
+
+
+void MainWindow::on_boundary_stroke_clicked()
+{
+    scribbleArea->setStrokeTypeToBoundary();
+}
+
+void MainWindow::on_contour_stroke_clicked()
+{
+    scribbleArea->setStrokeTypeToContour();
+}
+
+void MainWindow::on_start_height_valueChanged(double arg1)
+{
+    scribbleArea->setStartHeight(arg1);
+}
+
+void MainWindow::on_end_height_valueChanged(double arg1)
+{
+    scribbleArea->setEndHeight(arg1);
+}
+
+void MainWindow::on_concave_stroke_2_clicked()
+{
+    scribbleArea->setStrokeTypeToConvexBend();
+}
+
+void MainWindow::on_concave_stroke_clicked()
+{
+    scribbleArea->setStrokeTypeToConcaveBend();
+}
+
+void MainWindow::on_run_bendsketch_clicked()
+{
+    Pipeline::runPipelineScribble(scribbleArea->getSketchData());
 }

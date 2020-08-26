@@ -134,3 +134,36 @@ quiver(xs(u_pos), ys(u_pos), lambda_u(u_pos).*u1(u_pos), lambda_u(u_pos).*u2(u_p
 quiver(xs(v_neg), ys(v_neg), lambda_v(v_neg).*v1(v_neg), lambda_v(v_neg).*v2(v_neg), .3, "LineWidth", 2, "Color", [1,0,0], "ShowArrowHead", "on");
 quiver(xs(v_pos), ys(v_pos), lambda_v(v_pos).*v1(v_pos), lambda_v(v_pos).*v2(v_pos), .3, "LineWidth", 2, "Color", [0,0,1], "ShowArrowHead", "on");
 
+figure(12)
+fileID = fopen("boundary.txt");
+C = textscan(fileID, "%f %f %d");
+xs = cell2mat(C(1,1));
+ys = -cell2mat(C(1,2));
+idx = cell2mat(C(1,3));
+idx_0 = idx == 1;
+idx_1 = idx == 4;
+idx_2 = idx == 5;
+idx_3 = idx == 7;
+idx_4 = idx == 10;
+idx_5 = idx == 5;
+
+%{
+scatter(xs(idx_0),ys(idx_0));
+hold on;
+scatter(xs(idx_1),ys(idx_1));
+scatter(xs(idx_2),ys(idx_2));
+scatter(xs(idx_3),ys(idx_3));
+scatter(xs(idx_4),ys(idx_4));
+scatter(xs(idx_5),ys(idx_5));
+%}
+line(xs,ys);
+
+%{
+line(xs(idx_0),ys(idx_0), "Color", "red");
+line(xs(idx_1),ys(idx_1),  "Color", "magenta");
+line(xs(idx_2),ys(idx_2), "Color", "green");
+line(xs(idx_3),ys(idx_3), "Color", "blue");
+line(xs(idx_4),ys(idx_4), "Color", "black");
+%line(xs(idx_5),ys(idx_5));
+%}
+

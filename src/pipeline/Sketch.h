@@ -11,6 +11,8 @@ struct NSVGpath;
 
 struct Face;
 
+struct BoundaryStroke;
+
 class Sketch
 {
 public:
@@ -42,7 +44,7 @@ public:
     int height;
     int diagonal_of_bounding_box;
 
-    const std::vector<std::vector<Eigen::Vector2f>> &getBoundaryStrokes() const {
+    const std::vector<BoundaryStroke> &getBoundaryStrokes() const {
         return boundary_strokes;
     }
 
@@ -69,7 +71,7 @@ public:
     static constexpr double SKETCH_SCALE = 100.0; // factor by which the sketch is scaled down
 
 private:
-    std::vector<std::vector<Eigen::Vector2f>> boundary_strokes;
+    std::vector<BoundaryStroke> boundary_strokes;
     std::vector<Stroke> convex_strokes;
     std::vector<Stroke> concave_strokes;
     // we use shared_ptrs because the StrokePoints have to belong to the strokes and the maps

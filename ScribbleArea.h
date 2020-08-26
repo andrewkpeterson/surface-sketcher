@@ -14,8 +14,16 @@ namespace Ui {
 
 using Stroke = std::vector<Eigen::Vector2f>;
 
+struct BoundaryStroke {
+    std::vector<Eigen::Vector2f> points;
+    std::vector<float> heights;
+    bool contour = false;
+};
+
 struct SketchData {
-    std::vector<Stroke> boundary;
+    std::vector<BoundaryStroke> boundary;
+    std::vector<BoundaryStroke> contour;
+
     std::vector<Stroke> convex;
     std::vector<Stroke> concave;
 
@@ -29,7 +37,7 @@ class ScribbleArea : public QWidget
 
 public:
     enum class StrokeType {
-        BOUNDARY, CONVEX_BEND, CONCAVE_BEND
+        BOUNDARY, CONTOUR, CONVEX_BEND, CONCAVE_BEND
     };
 
     ScribbleArea(QWidget *parent = 0);
@@ -38,6 +46,8 @@ public:
     bool saveImage(const QString &fileName, const char *fileFormat);
     void setPenColor(const QColor &newColor);
     void setPenWidth(int newWidth);
+    void setStartHeight(float height) { start_height = height; }
+    void setEndHeight(float height) { end_height = height; }
 
     bool isModified() const { return modified; }
     QColor penColor() const { return myPenColor; }
@@ -50,6 +60,10 @@ public slots:
     void print();
     void setStrokeTypeToBoundary() {
         m_type = StrokeType::BOUNDARY;
+        myPenColor = QColor(0,0,0);
+    }
+    void setStrokeTypeToContour() {
+        m_type = StrokeType::CONTOUR;
         myPenColor = QColor(0,0,0);
     }
     void setStrokeTypeToConvexBend() {
@@ -72,6 +86,7 @@ private:
     void drawLineTo(const QPoint &endPoint);
     void resizeImage(QImage *image, const QSize &newSize);
     void addStrokeToData();
+    BoundaryStroke createBoundaryStroke();
 
     bool modified;
     bool scribbling;
@@ -85,7 +100,9 @@ private:
     std::vector<Eigen::Vector2f> currentStroke;
     int strokeCount = 0;
 
-    int MOVES_PER_STROKE = 0;
+    float start_height = 0;
+    float end_height = 0;
+
     float DISTANCE_BETWEEN_POINTS = 2;
 
     Ui::ScribbleArea *ui;

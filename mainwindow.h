@@ -31,6 +31,20 @@ private slots:
     void about();
     void runBendsketch();
 
+    void on_boundary_stroke_clicked();
+
+    void on_contour_stroke_clicked();
+
+    void on_start_height_valueChanged(double arg1);
+
+    void on_end_height_valueChanged(double arg1);
+
+    void on_concave_stroke_2_clicked();
+
+    void on_concave_stroke_clicked();
+
+    void on_run_bendsketch_clicked();
+
 private:
     void createActions();
     void createMenus();

@@ -65,8 +65,21 @@ public:
                 stream << buf << endl;
             };
 
+            auto func3 = [&] (std::shared_ptr<Vertex> v) {
+                std::sprintf(buf, "v %f %f %f", v->coords.x(), v->coords.y(), -v->height);
+                stream << buf << endl;
+            };
+
+            auto func4 = [&] (std::shared_ptr<Face> f) {
+                std::sprintf(buf, "f %d %d %d", mesh.getNumVertices() + f->vertices[2]->index + 1, mesh.getNumVertices() + f->vertices[1]->index + 1,
+                             mesh.getNumVertices() + f->vertices[0]->index + 1);
+                stream << buf << endl;
+            };
+
             mesh.forEachVertex(func1);
             mesh.forEachTriangle(func2);
+            mesh.forEachVertex(func3);
+            mesh.forEachTriangle(func4);
         }
 
         QFile vectors(direction_field_file.c_str());

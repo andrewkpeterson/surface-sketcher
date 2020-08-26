@@ -35,24 +35,50 @@ bool ScribbleArea::openImage(const QString &fileName)
     data.concave.clear();
     QTextStream in(&file);
     QString line = in.readLine();
-    std::vector<Eigen::Vector2f> curr_vec;
-    while (line != "convex") {
+    BoundaryStroke curr_boundary;
+    while (line != "contour") {
         if (QString::compare(line,QString("boundary")) != 0 && QString::compare(line, QString("")) != 0) {
             float x;
             float y;
-            std::sscanf(line.toUtf8().constData(), "%f %f", &x, &y);
-            curr_vec.push_back(Eigen::Vector2f(x,y));
-        } else if (curr_vec.size() > 0) {
-            data.boundary.push_back(curr_vec);
-            curr_vec = std::vector<Eigen::Vector2f>();
+            float height;
+            std::sscanf(line.toUtf8().constData(), "%f %f %f", &x, &y, &height);
+            curr_boundary.points.push_back(Eigen::Vector2f(x,y));
+            curr_boundary.heights.push_back(height);
+        } else if (curr_boundary.points.size() > 0) {
+            curr_boundary.contour = false;
+            data.boundary.push_back(curr_boundary);
+            curr_boundary = BoundaryStroke();
         }
         line = in.readLine();
     }
-
-    if (curr_vec.size() > 0) {
-        data.boundary.push_back(curr_vec);
+    if (curr_boundary.points.size() > 0) {
+        curr_boundary.contour = false;
+        data.boundary.push_back(curr_boundary);
+        curr_boundary = BoundaryStroke();
     }
-    curr_vec = std::vector<Eigen::Vector2f>();
+
+    while (line != "convex") {
+        if (QString::compare(line,QString("contour")) != 0 && QString::compare(line, QString("")) != 0) {
+            float x;
+            float y;
+            float height;
+            std::sscanf(line.toUtf8().constData(), "%f %f %f", &x, &y, &height);
+            curr_boundary.points.push_back(Eigen::Vector2f(x,y));
+            curr_boundary.heights.push_back(height);
+        } else if (curr_boundary.points.size() > 0) {
+            curr_boundary.contour = true;
+            data.contour.push_back(curr_boundary);
+            curr_boundary = BoundaryStroke();
+        }
+        line = in.readLine();
+    }
+    if (curr_boundary.points.size() > 0) {
+        curr_boundary.contour = true;
+        data.contour.push_back(curr_boundary);
+        curr_boundary = BoundaryStroke();
+    }
+
+    std::vector<Eigen::Vector2f> curr_vec = std::vector<Eigen::Vector2f>();
     while (line != "concave") {
         if (line.compare("convex") != 0 && line.compare("") != 0) {
             float x;
@@ -65,10 +91,11 @@ bool ScribbleArea::openImage(const QString &fileName)
         }
         line = in.readLine();
     }
-
     if (curr_vec.size() > 0) {
         data.convex.push_back(curr_vec);
+        curr_vec = std::vector<Eigen::Vector2f>();
     }
+
     curr_vec = std::vector<Eigen::Vector2f>();
     while (!in.atEnd()) {
         if (line.compare("concave") != 0 && line.compare("") != 0) {
@@ -113,8 +140,16 @@ bool ScribbleArea::saveImage(const QString &fileName, const char *fileFormat)
         char buf[512];
         stream << "boundary" << endl;
         for (int i = 0; i < data.boundary.size(); i++) {
-            for (int j = 0; j < data.boundary[i].size(); j++) {
-                std::sprintf(buf, "%f %f", data.boundary[i][j].x(), data.boundary[i][j].y());
+            for (int j = 0; j < data.boundary[i].points.size(); j++) {
+                std::sprintf(buf, "%f %f %f", data.boundary[i].points[j].x(), data.boundary[i].points[j].y(), data.boundary[i].heights[j]);
+                stream << buf << endl;
+            }
+            stream << endl;
+        }
+        stream << "contour" << endl;
+        for (int i = 0; i < data.contour.size(); i++) {
+            for (int j = 0; j < data.contour[i].points.size(); j++) {
+                std::sprintf(buf, "%f %f %f", data.contour[i].points[j].x(), data.contour[i].points[j].y(), data.contour[i].heights[j]);
                 stream << buf << endl;
             }
             stream << endl;
@@ -180,9 +215,36 @@ void ScribbleArea::mouseReleaseEvent(QMouseEvent *event)
     }
 }
 
+BoundaryStroke ScribbleArea::createBoundaryStroke() {
+    BoundaryStroke stroke;
+    stroke.points = currentStroke;
+    if (m_type == StrokeType::CONTOUR) {
+        stroke.contour = true;
+    }
+    float L = end_height - start_height;
+    float stroke_length = 0;
+    float k = 1;
+    for (int i = 1; i < currentStroke.size(); i++) {
+        stroke_length += (currentStroke[i-1] - currentStroke[i]).norm();
+    }
+
+    float accumulated_length = 0;
+    for (int i = 0; i < currentStroke.size() - 1; i++) {
+        float t = 12 * (.5 * accumulated_length - stroke_length);
+        float height = L / (1 + std::exp(-k * t));
+        stroke.heights.push_back(height);
+        if (i < currentStroke.size() - 1) { accumulated_length += (currentStroke[i] - currentStroke[i+1]).norm(); }
+    }
+    return stroke;
+}
+
 void ScribbleArea::addStrokeToData() {
     if (m_type == StrokeType::BOUNDARY) {
-        data.boundary.push_back(std::move(currentStroke));
+        auto boundary_stroke = createBoundaryStroke();
+        data.boundary.push_back(std::move(boundary_stroke));
+    } else if (m_type == StrokeType::CONTOUR) {
+        auto boundary_stroke = createBoundaryStroke();
+        data.contour.push_back(std::move(boundary_stroke));
     } else if (m_type == StrokeType::CONVEX_BEND) {
         data.convex.push_back(std::move(currentStroke));
     } else if (m_type == StrokeType::CONCAVE_BEND) {
@@ -218,26 +280,18 @@ void ScribbleArea::drawLineTo(const QPoint &endPoint)
     modified = true;
 
     Eigen::Vector2f start = Eigen::Vector2f(lastPoint.x(), lastPoint.y());
-    if (strokeCount > MOVES_PER_STROKE) {
-        if (m_type == StrokeType::BOUNDARY) {
-            currentStroke.push_back(start / Sketch::SKETCH_SCALE);
-            std::cout << "x: " << start.x() << "y: " << start.y() << std::endl;
-        } else {
-            Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
-            float length = (end - start).norm();
-            if (length > 0) {
-                float t = 0;
-                while (t < 1) {
-                    t += DISTANCE_BETWEEN_POINTS / length;
-                    Eigen::Vector2f point = start + (end - start) * t;
-                    currentStroke.push_back(point / Sketch::SKETCH_SCALE);
-                    std::cout << "x: " << point.x() << " y: " << point.y() << std::endl;
-                }
-                currentStroke.push_back(end / Sketch::SKETCH_SCALE);
-            }
+    Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
+    float length = (end - start).norm();
+    if (length > 0) {
+        float t = 0;
+        while (t < 1) {
+            t += DISTANCE_BETWEEN_POINTS / length;
+            Eigen::Vector2f point = start + (end - start) * t;
+            currentStroke.push_back(point / Sketch::SKETCH_SCALE);
         }
-        strokeCount = 0;
+        currentStroke.push_back(end / Sketch::SKETCH_SCALE);
     }
+    strokeCount = 0;
     strokeCount++;
 
     int rad = (myPenWidth / 2) + 2;

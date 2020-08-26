@@ -1,4 +1,108 @@
 #include "Mesh.h"
+#include "Sketch.h"
+
+void Mesh::squishTriangulation() {
+    // go through all of the contour triangles and recursively visit interior triangles
+    // mark the interior triangle's depth and their initial contour triangle
+    std::map<Face*,std::pair<Face*, int>> face_info;
+    forEachBoundaryTriangle([&](Face *f) {
+        if (!f->contour) { return; }
+        markFaces(f, f, 0, face_info);
+    });
+
+    std::set<std::shared_ptr<Vertex>> squished_verts;
+    forEachBoundaryTriangle([&](Face *f) {
+        if (!f->contour) { return; }
+        squishTriangulationHelper(f, f, nullptr, 0, face_info, squished_verts);
+    });
+}
+
+void Mesh::markFaces(Face *initial, Face *curr, int depth, std::map<Face*,std::pair<Face*, int>> &face_info) {
+    if (depth <= SQUISH_MAX_DEPTH) {
+        if (face_info.find(curr) == face_info.end()) {
+            face_info[curr] = std::pair(initial, depth);
+        } else {
+            auto p = face_info[curr];
+            if (depth < p.second) {
+                face_info[curr] = std::pair(initial, depth);
+            }
+        }
+
+        for (int i = 0; i < curr->neighbors.size(); i++) {
+            if (!curr->neighbors[i]->boundary) {
+                markFaces(initial, curr->neighbors[i], depth+1, face_info);
+            }
+        }
+    }
+}
+
+void Mesh::squishTriangulationHelper(Face *initial, Face *curr, Face *prev, int depth, std::map<Face*,std::pair<Face*, int>> &face_info,
+                                     std::set<std::shared_ptr<Vertex>> squished_verts) {
+    if (depth <= SQUISH_MAX_DEPTH) {
+        assert(face_info.find(curr) != face_info.end());
+        auto p = face_info[curr];
+        if (p.first == initial && p.second == depth) {
+            // first recursively visit the neighbors to squish them, and then squish the current triangle
+            for (int i = 0; i < curr->neighbors.size(); i++) {
+                squishTriangulationHelper(initial, curr->neighbors[i], curr, depth+1, face_info, squished_verts);
+            }
+            std::vector<std::shared_ptr<Vertex>> interior_verts;
+            std::vector<std::shared_ptr<Vertex>> exterior_verts;
+
+            if (depth == 0) {
+                // only squish unsquished vertices
+                for (int i = 0; i < 3; i++) {
+                    if (curr->vertices[i]->boundary) { exterior_verts.push_back(curr->vertices[i]); }
+                    else { interior_verts.push_back(curr->vertices[i]); }
+                }
+            } else {
+                for (int i = 0; i < 3; i++) {
+                    bool not_in_prev = true;
+                    for (int j = 0; j < 3; j++) {
+                        if (curr->vertices[i] == prev->vertices[j]) {
+                            not_in_prev = false;
+                        }
+                    }
+                    if (not_in_prev) { interior_verts.push_back(curr->vertices[i]); }
+                    else { exterior_verts.push_back(curr->vertices[i]); }
+                }
+            }
+            assert(interior_verts.size() > 0);
+            Eigen::Vector2f average(0,0);
+            for (int i = 0; i < interior_verts.size(); i++) {
+                average += interior_verts[i]->coords;
+            }
+            for (int i = 0; i < exterior_verts.size(); i++) {
+                average += exterior_verts[i]->coords;
+            }
+            average /= 3;
+            for (int i = 0; i < exterior_verts.size(); i++) {
+                if (squished_verts.find(exterior_verts[i]) == squished_verts.end()) {
+                    squished_verts.insert(exterior_verts[i]);
+                    exterior_verts[i]->coords = (SQUISH_WEIGHT) * average + (1 - SQUISH_WEIGHT) * exterior_verts[i]->coords;
+                }
+            }
+        }
+    }
+}
+
+Eigen::Vector3f Mesh::calculateVertexNormal(std::shared_ptr<Vertex> v) {
+    Eigen::Vector3f sum(0,0,0);
+    for (int i = 0; i < v->faces.size(); i++) {
+        Face *f = v->faces[i];
+        Eigen::Vector3f normal;
+        if (f->vertices[0] == v) {
+            normal = (f->vertices[1]->coords3d() - f->vertices[0]->coords3d()).cross(f->vertices[2]->coords3d() - f->vertices[0]->coords3d());
+        } else if (f->vertices[1] == v) {
+            normal = (f->vertices[0]->coords3d() - f->vertices[1]->coords3d()).cross(f->vertices[2]->coords3d() - f->vertices[1]->coords3d());
+        } else {
+            normal = (f->vertices[1]->coords3d() - f->vertices[2]->coords3d()).cross(f->vertices[0]->coords3d() - f->vertices[2]->coords3d());
+        }
+        normal = normal.dot(Eigen::Vector3f(0,0,1)) > 0 ? normal : -normal;
+        sum += normal;
+    }
+    return sum.normalized();
+}
 
 float Mesh::calcTriangleArea(Face_handle f) {
     float a = std::sqrt((f->vertex(0)->point() - f->vertex(1)->point()).squared_length());
@@ -42,7 +146,7 @@ float Mesh::calcEFGArea(const Face *f, const Face *g) {
 // This method uses the CGAL cdt data structure and turns it into a data structure that is
 // easier to work with and has face data structures that store some useful information that
 // the CGAL cdt does not have, such as an index for each face.
-void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info) {
+void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info, Sketch &sketch) {
     int num_faces = 0;
     int num_verts = 0;
     int next_face_index = 0;
@@ -107,10 +211,46 @@ void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info) {
                     f->neighbors.push_back(visited_faces[it->neighbor(i)].get());
                 }
                 f->vertices.push_back(visited_vertices[it->vertex(i)]);
+                visited_vertices[it->vertex(i)]->faces.push_back(f.get());
             }
-            if (f->neighbors.size() < 3) { edge_faces.insert(f.get()); }
+            if (f->neighbors.size() < 3) { edge_faces.insert(f.get()); f->boundary = true; }
         }
     }
+
+    forEachBoundaryVertex([&](std::shared_ptr<Vertex> v) {
+        int best_stroke_idx = 0;
+        int best_point_idx = 0;
+        float best_dist = INFINITY;
+        const auto &boundaries = sketch.getBoundaryStrokes();
+        for (int i = 0; i < boundaries.size(); i++) {
+            for (int j = 0; j < boundaries[i].points.size(); j++) {
+                float dist = (v->coords - boundaries[i].points[j]).norm();
+                if (dist < best_dist) {
+                    best_stroke_idx = i;
+                    best_point_idx = j;
+                    best_dist = dist;
+                }
+            }
+        }
+        v->boundary_height_constraint = boundaries[best_stroke_idx].heights[best_point_idx];
+    });
+
+    forEachBoundaryTriangle([&](Face *f) {
+        int best_stroke_idx = 0;
+        int best_point_idx = 0;
+        float best_dist = INFINITY;
+        const auto &boundaries = sketch.getBoundaryStrokes();
+        for (int i = 0; i < boundaries.size(); i++) {
+            for (int j = 0; j < boundaries[i].points.size(); j++) {
+                float dist = (f->centroid - boundaries[i].points[j]).norm();
+                if (dist < best_dist) {
+                    best_stroke_idx = i;
+                    best_point_idx = j;
+                }
+            }
+        }
+        f->contour = boundaries[best_stroke_idx].contour;
+    });
 
     forEachTriangle([&](std::shared_ptr<Face> f) {
         forEachTriangle([&](std::shared_ptr<Face> g) {
@@ -175,6 +315,18 @@ void Mesh::forEachVertex(const std::function<void(std::shared_ptr<const Vertex>)
 
 void Mesh::forEachBoundaryVertex(const std::function<void (std::shared_ptr<const Vertex>)> &func) const {
     for (auto it = edge_vertices.begin(); it != edge_vertices.end(); it++) {
+        func(*it);
+    }
+}
+
+void Mesh::forEachBoundaryVertex(const std::function<void(std::shared_ptr<Vertex>)> &func) {
+    for (auto it = edge_vertices.begin(); it != edge_vertices.end(); it++) {
+        func(*it);
+    }
+}
+
+void Mesh::forEachBoundaryTriangle(const std::function<void(Face*)> &func) {
+    for (auto it = edge_faces.begin(); it != edge_faces.end(); it++) {
         func(*it);
     }
 }
