@@ -4,21 +4,23 @@
 void Mesh::squishTriangulation() {
     // go through all of the contour triangles and recursively visit interior triangles
     // mark the interior triangle's depth and their initial contour triangle
-    std::map<Face*,std::pair<Face*, int>> face_info;
-    forEachBoundaryTriangle([&](Face *f) {
-        if (!f->contour) { return; }
-        markFaces(f, f, 0, face_info);
-    });
+    for (int i = 0; i < SQUISH_MAX_DEPTH; i++) {
+        std::map<Face*,std::pair<Face*, int>> face_info;
+        forEachBoundaryTriangle([&](Face *f) {
+            if (!f->contour) { return; }
+            markFaces(f, f, 0, face_info, SQUISH_MAX_DEPTH - i);
+        });
 
-    std::set<std::shared_ptr<Vertex>> squished_verts;
-    forEachBoundaryTriangle([&](Face *f) {
-        if (!f->contour) { return; }
-        squishTriangulationHelper(f, f, nullptr, 0, face_info, squished_verts);
-    });
+        std::set<std::shared_ptr<Vertex>> squished_verts;
+        forEachBoundaryTriangle([&](Face *f) {
+            if (!f->contour) { return; }
+            squishTriangulationHelper(f, f, nullptr, 0, face_info, squished_verts, SQUISH_MAX_DEPTH - i);
+        });
+    }
 }
 
-void Mesh::markFaces(Face *initial, Face *curr, int depth, std::map<Face*,std::pair<Face*, int>> &face_info) {
-    if (depth <= SQUISH_MAX_DEPTH) {
+void Mesh::markFaces(Face *initial, Face *curr, int depth, std::map<Face*,std::pair<Face*, int>> &face_info, int max_depth) {
+    if (depth <= max_depth) {
         if (face_info.find(curr) == face_info.end()) {
             face_info[curr] = std::pair(initial, depth);
         } else {
@@ -30,22 +32,23 @@ void Mesh::markFaces(Face *initial, Face *curr, int depth, std::map<Face*,std::p
 
         for (int i = 0; i < curr->neighbors.size(); i++) {
             if (!curr->neighbors[i]->boundary) {
-                markFaces(initial, curr->neighbors[i], depth+1, face_info);
+                markFaces(initial, curr->neighbors[i], depth+1, face_info, max_depth);
             }
         }
     }
 }
 
 void Mesh::squishTriangulationHelper(Face *initial, Face *curr, Face *prev, int depth, std::map<Face*,std::pair<Face*, int>> &face_info,
-                                     std::set<std::shared_ptr<Vertex>> squished_verts) {
-    if (depth <= SQUISH_MAX_DEPTH) {
+                                     std::set<std::shared_ptr<Vertex>> squished_verts, int max_depth) {
+    if (depth <= max_depth) {
         assert(face_info.find(curr) != face_info.end());
         auto p = face_info[curr];
+        // first recursively visit the neighbors to squish them, and then squish the current triangle
+        for (int i = 0; i < curr->neighbors.size(); i++) {
+            squishTriangulationHelper(initial, curr->neighbors[i], curr, depth+1, face_info, squished_verts, max_depth);
+        }
+
         if (p.first == initial && p.second == depth) {
-            // first recursively visit the neighbors to squish them, and then squish the current triangle
-            for (int i = 0; i < curr->neighbors.size(); i++) {
-                squishTriangulationHelper(initial, curr->neighbors[i], curr, depth+1, face_info, squished_verts);
-            }
             std::vector<std::shared_ptr<Vertex>> interior_verts;
             std::vector<std::shared_ptr<Vertex>> exterior_verts;
 
@@ -67,19 +70,29 @@ void Mesh::squishTriangulationHelper(Face *initial, Face *curr, Face *prev, int 
                     else { exterior_verts.push_back(curr->vertices[i]); }
                 }
             }
+
             assert(interior_verts.size() > 0);
             Eigen::Vector2f average(0,0);
+            int count = 0;
             for (int i = 0; i < interior_verts.size(); i++) {
                 average += interior_verts[i]->coords;
+                count++;
             }
-            for (int i = 0; i < exterior_verts.size(); i++) {
-                average += exterior_verts[i]->coords;
+            /*
+            if (average.norm() == 0) {
+                for (int i = 0; i < exterior_verts.size(); i++) {
+                    average += exterior_verts[i]->coords;
+                    count++;
+                }
             }
-            average /= 3;
-            for (int i = 0; i < exterior_verts.size(); i++) {
-                if (squished_verts.find(exterior_verts[i]) == squished_verts.end()) {
-                    squished_verts.insert(exterior_verts[i]);
-                    exterior_verts[i]->coords = (SQUISH_WEIGHT) * average + (1 - SQUISH_WEIGHT) * exterior_verts[i]->coords;
+            */
+            if (p.first == initial && p.second == depth) {
+                average /= count;
+                for (int i = 0; i < exterior_verts.size(); i++) {
+                    if (squished_verts.find(exterior_verts[i]) == squished_verts.end()) {
+                        squished_verts.insert(exterior_verts[i]);
+                        exterior_verts[i]->coords = (SQUISH_WEIGHT) * average + (1 - SQUISH_WEIGHT) * exterior_verts[i]->coords;
+                    }
                 }
             }
         }
@@ -213,9 +226,14 @@ void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info, Sketch &sketch) {
                 f->vertices.push_back(visited_vertices[it->vertex(i)]);
                 visited_vertices[it->vertex(i)]->faces.push_back(f.get());
             }
-            if (f->neighbors.size() < 3) { edge_faces.insert(f.get()); f->boundary = true; }
+            //if (f->neighbors.size() < 3) { edge_faces.insert(f.get()); f->boundary = true; }
+            for (int i = 0; i < 3; i++) {
+                if (f->vertices[i]->boundary) { edge_faces.insert(f.get()); f->boundary = true; }
+            }
         }
     }
+
+    std::cout << edge_faces.size() << std::endl;
 
     forEachBoundaryVertex([&](std::shared_ptr<Vertex> v) {
         int best_stroke_idx = 0;

@@ -70,7 +70,6 @@ struct F1 {
   template <typename T>
   bool operator()(const T* const c1, const T* const c2, const T* const r,  T* residual) const {
     residual[0] = T(sqrt((T(p1) - c1[0]) * (T(p1) - c1[0]) + (T(p2) - c2[0]) * (T(p2) - c2[0]))) - r[0];
-    //std::cout << residual[0] << std::endl;
     return true;
   }
 
@@ -164,7 +163,6 @@ void HeightFieldSolver::estimateCurvatureValuesHelperMorePrecise(Mesh &mesh, Ske
             Solver::Options options;
             options.max_num_iterations = 200;
             options.function_tolerance = .000001;
-            //options.minimizer_progress_to_stdout = true;
             Solver::Summary summary;
             Solve(options, &problem, &summary);
             //std::cout << "points: " << N << " " << (convex ? "convex " : "concave ") << "curvature at " << "(" << center_point->coords3d().x() << "," << center_point->coords3d().y() << "): " <<
@@ -205,15 +203,8 @@ void HeightFieldSolver::minimizeELambda(Mesh &mesh, const Sketch &sketch) {
     A.makeCompressed();
     Eigen::SparseLU<SparseMat> solver(A);
     solver.analyzePattern(A);
-    //std::cout << solver.lastErrorMessage() << std::endl;
-    //std::cout << solver.info() << std::endl;
     solver.factorize(A);
-    //std::cout << solver.lastErrorMessage() << std::endl;
-    //std::cout << solver.info() << std::endl;
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
-    //std::cout << solver.lastErrorMessage() << std::endl;
-    //std::cout << solver.info() << std::endl;
-    //std::cout << x << std::endl;
 
     mesh.forEachTriangle([&](std::shared_ptr<Face> f) {
         f->lambda_u = x(2*f->index);
@@ -377,11 +368,9 @@ void HeightFieldSolver::optimizeHeightField(Mesh &mesh, const Sketch &sketch) {
     solver.factorize(A);
     std::cout << solver.lastErrorMessage() << std::endl;
     std::cout << solver.info() << std::endl;
-    //std::cout << b << std::endl;
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
     std::cout << solver.lastErrorMessage() << std::endl;
     std::cout << solver.info() << std::endl;
-    //std::cout << x << std::endl;
 
     mesh.forEachVertex([&](std::shared_ptr<Vertex> v) {
         v->height = x(v->index);
@@ -535,42 +524,6 @@ float HeightFieldSolver::calcdB(Face* f, std::shared_ptr<Vertex> v, int face_idx
 }
 
 float HeightFieldSolver::calcdG(Face* f, std::shared_ptr<Vertex> v, int face_idx, bool deriv_wrt_x) {
-    /*
-    Face* face;
-    if (face_idx == 0) {
-        face = f;
-    } else {
-        face = f->neighbors[face_idx - 1];
-    }
-    std::shared_ptr<Vertex> i;
-    std::shared_ptr<Vertex> j;
-    std::shared_ptr<Vertex> k;
-    assert(face != nullptr);
-    if (v == face->vertices[0]) { i = v; j = face->vertices[1]; k = face->vertices[2]; }
-    else if (v == face->vertices[1]) { i = v; j = face->vertices[0]; k = face->vertices[2]; }
-    else if (v == face->vertices[2]) { i = v; j = face->vertices[0]; k = face->vertices[1]; }
-    assert(i != nullptr);
-    assert(j != nullptr);
-    assert(k != nullptr);
-
-    Eigen::Matrix2f m;
-    m << 0, -1,
-         1, 0;
-    Eigen::Matrix2f m_reverse;
-    m_reverse << 0, 1,
-         -1, 0;
-
-    Eigen::Vector2f ki = i->coords - k->coords;
-    Eigen::Vector2f ki_perp = (m * ki).dot(j->coords - i->coords) > 0 ? m * ki : m_reverse * ki;
-
-    Eigen::Vector2f ij = j->coords - i->coords;
-    Eigen::Vector2f ij_perp = (m * ij).dot(k->coords - j->coords) > 0 ? m * ij : m_reverse * ij;
-
-    float C_ik = deriv_wrt_x ? (ki_perp.x() / (2.0 * face->area)) : (ki_perp.y() / (2.0 * face->area));
-    float C_ji = deriv_wrt_x ? (ij_perp.x() / (2.0 * face->area)) : (ij_perp.y() / (2.0 * face->area));
-
-    return (face_idx == 0) ? (C_ik + C_ji) : -(C_ik + C_ji);
-    */
     Face* face;
     if (face_idx == 0) {
         face = f;
@@ -629,9 +582,6 @@ void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(Face* f, Mesh &me
     for (int vertex_idx = 0; vertex_idx < coefficients.size(); vertex_idx++) {
         auto v = vertices[vertex_idx]; // the vertex that the with respect to which the derivative was taken
         float kv = coefficients[vertex_idx];
-        // when we multiply this by a larger number, the curvature vanishes more slowly.
-        // Is the constraint part correct? Upon further inspection, it looks like it is
-        // more that likely that the values being added to the sparse map are too big.
         b(v->index) += 2 * constraint * kv * (f->area / mesh.getTotalArea());
         for (int neighbor_idx = 0; neighbor_idx < coefficients.size(); neighbor_idx++) {
             auto n = vertices[neighbor_idx];
@@ -641,7 +591,6 @@ void HeightFieldSolver::addCoefficientsToMapAndVectorForEMatch(Face* f, Mesh &me
                 std::cout << "stop" << std::endl;
                 assert(false);
             }
-            //std::cout << 2 * kv * kn << std::endl;
             addToSparseMap(p, 2 * kv * kn * (f->area / mesh.getTotalArea()), m);
         }
     }
@@ -662,12 +611,13 @@ void HeightFieldSolver::addCoefficientsForEBoundary(Mesh &mesh, const Sketch &sk
 void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m) {
     std::set<std::shared_ptr<Vertex>> visited_vertices;
     int count = 0;
+    const auto &boundary_verts = mesh.getEdgeVertices();
     mesh.forEachBoundaryVertex([&](std::shared_ptr<Vertex> v) {
         std::shared_ptr<Vertex> backward_v = nullptr;
         std::shared_ptr<Vertex> forward_v = nullptr;
         for (int i = 0; i < v->faces.size(); i++) {
             for (int j = 0; j < 3; j++) {
-                if (v->faces[i]->vertices[j] != v) {
+                if (v->faces[i]->vertices[j] != v && boundary_verts.find(v->faces[i]->vertices[j]) != boundary_verts.end()) {
                     backward_v = v->faces[i]->vertices[j];
                     break;
                 }
@@ -676,7 +626,7 @@ void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const
 
         for (int i = 0; i < v->faces.size(); i++) {
             for (int j = 0; j < 3; j++) {
-                if (v->faces[i]->vertices[j] != v && v->faces[i]->vertices[j] != backward_v) {
+                if (v->faces[i]->vertices[j] != v && v->faces[i]->vertices[j] != backward_v && boundary_verts.find(v->faces[i]->vertices[j]) != boundary_verts.end()) {
                     forward_v = v->faces[i]->vertices[j];
                     break;
                 }
@@ -726,28 +676,66 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
         std::cout << "contour" << std::endl;
 
         std::shared_ptr<Vertex> interior_vertex = nullptr;
-        int count = 0;
+        int num_interior_verts = 0;
         for (int i = 0; i < 3; i++) {
             if (boundary_vertices.find(f->vertices[i]) == boundary_vertices.end()) {
                 interior_vertex = f->vertices[i];
-                count++;
+                num_interior_verts++;
             }
         }
-        assert(count == 1);
+        assert(num_interior_verts == 1 || num_interior_verts == 2);
         assert(interior_vertex != nullptr);
 
         // calculate the normal vector to the boundary, which lies in the drawing plane
         std::shared_ptr<Vertex> b1;
         std::shared_ptr<Vertex> b2;
-        if (interior_vertex == f->vertices[0]) {
-            b1 = f->vertices[1];
-            b2 = f->vertices[2];
-        } else if (interior_vertex == f->vertices[1]) {
-            b1 = f->vertices[0];
-            b2 = f->vertices[2];
+        if (num_interior_verts == 1) {
+            if (interior_vertex == f->vertices[0]) {
+                b1 = f->vertices[1];
+                b2 = f->vertices[2];
+            } else if (interior_vertex == f->vertices[1]) {
+                b1 = f->vertices[0];
+                b2 = f->vertices[2];
+            } else {
+                b1 = f->vertices[0];
+                b2 = f->vertices[1];
+            }
         } else {
-            b1 = f->vertices[0];
-            b2 = f->vertices[1];
+            std::shared_ptr<Vertex> v;
+            for (int i = 0; i < 3; i++) {
+                if (boundary_vertices.find(f->vertices[i]) != boundary_vertices.end()) {
+                    v = f->vertices[i];
+                }
+            }
+            std::shared_ptr<Vertex> backward_v = nullptr;
+            std::shared_ptr<Vertex> forward_v = nullptr;
+
+            for (int i = 0; i < v->faces.size(); i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (v->faces[i]->vertices[j] != v && boundary_vertices.find(v->faces[i]->vertices[j]) != boundary_vertices.end()) {
+                        backward_v = v->faces[i]->vertices[j];
+                        break;
+                    }
+                }
+            }
+
+            for (int i = 0; i < v->faces.size(); i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (v->faces[i]->vertices[j] != v && v->faces[i]->vertices[j] != backward_v &&
+                        boundary_vertices.find(v->faces[i]->vertices[j]) != boundary_vertices.end()) {
+                        forward_v = v->faces[i]->vertices[j];
+                        break;
+                    }
+                }
+            }
+            assert(forward_v != nullptr || backward_v != nullptr);
+            if (forward_v != nullptr) {
+                b1 = v;
+                b2 = forward_v;
+            } else {
+                b1 = v;
+                b2 = backward_v;
+            }
         }
 
         Eigen::Matrix2f mat;
@@ -762,8 +750,9 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
 
         Eigen::Vector3f N_bdry(N_bdry2D.x(), N_bdry2D.y(), 0);
 
-        //Eigen::Vector3f g = (2 * mesh.calculateVertexNormal(interior_vertex) + N_bdry.normalized()).normalized();
+        //Eigen::Vector3f g = (2 * mesh.calculateVertexNormal(interior_vertex).normalized() + N_bdry.normalized()).normalized();
         Eigen::Vector3f g = N_bdry.normalized();
+
         std::shared_ptr<Vertex> i = f->vertices[0];
         std::shared_ptr<Vertex> j = f->vertices[1];
         std::shared_ptr<Vertex> k = f->vertices[2];
@@ -778,12 +767,16 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
         Eigen::Vector2f C_ji = (ij_perp / (2.0 * f->area));
 
         Eigen::Vector2f gradient2D = C_ik * (j->height - i->height) + C_ji * (k->height - i->height);
+        std::cout << gradient2D << std::endl;
 
         // the bigger this is, the closer the boundary faces will be to being orthogonal to the drawing plane
         // We need to normalize the normal created from the gradient of the height field because we are
-        // compairing it to the target face normal g
+        // compairing it to the target face normal g, which is normalized
         float normal_from_gradient_norm = Eigen::Vector3f(-gradient2D.x(), -gradient2D.y(), 1).norm();
 
+        // the current normal is (-df/dx, -df/dy, 1)
+        // we need to treat the norm of the normal created from the gradient as a constant in the iteration, because that
+        // is the only way we can solve the optimization using a linear system
         float Kx_i = -(-C_ik.x() - C_ji.x()) / normal_from_gradient_norm;
         float Ky_i = -(-C_ik.y() - C_ji.y()) / normal_from_gradient_norm;
         float Kx_j = -C_ik.x() / normal_from_gradient_norm;
@@ -793,8 +786,6 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
 
         float constant_x = -g.x();
         float constant_y = -g.y();
-
-        //std::cout << constant << std::endl;
 
         float mult = 2 * f->area / boundary_area * CONTOUR_CONSTRAINT_WEIGHT;
 
@@ -857,7 +848,6 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p3, mult * Ky_k * Ky_k, m);
             b(k->index) += mult * Ky_k * constant_y;
         }
-
 
     });
 }

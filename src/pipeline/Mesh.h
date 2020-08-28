@@ -88,8 +88,8 @@ public:
     static float calcTriangleArea(const Eigen::Vector2f v1, const Eigen::Vector2f v2, const Eigen::Vector2f v3);
 
     void squishTriangulation();
-    void markFaces(Face *intial, Face *curr, int depth, std::map<Face *, std::pair<Face *, int> > &face_info);
-    void squishTriangulationHelper(Face *initial, Face *curr, Face *prev, int depth, std::map<Face*,std::pair<Face*, int>> &face_info, std::set<std::shared_ptr<Vertex> > squished_verts);
+    void markFaces(Face *intial, Face *curr, int depth, std::map<Face *, std::pair<Face *, int> > &face_info, int max_depth);
+    void squishTriangulationHelper(Face *initial, Face *curr, Face *prev, int depth, std::map<Face*,std::pair<Face*, int>> &face_info, std::set<std::shared_ptr<Vertex> > squished_verts, int max_depth);
 
 
 
@@ -109,8 +109,8 @@ private:
 
     float m_boundary_length;
 
-    int SQUISH_MAX_DEPTH = 10;
-    float SQUISH_WEIGHT = .5; // weights how much the exterior vertices are pushed to the interior
+    static constexpr int SQUISH_MAX_DEPTH = 12;
+    static constexpr float SQUISH_WEIGHT = .05; // weights how much the exterior vertices are pushed to the interior
 
 };
 

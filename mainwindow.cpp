@@ -5,18 +5,21 @@
 #include <QColorDialog>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QLabel>
 
 #include "mainwindow.h"
-#include "ScribbleArea.h"
+#include "src/drawing/ScribbleArea.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-    scribbleArea = new ScribbleArea;
-    ui->window->layout()->addWidget(scribbleArea);
-    //setCentralWidget(scribbleArea);
+
+    ui->heightArea->loadImage("blank.bmp");
+    ui->heightArea->setPenColor(QColor(0, 0, 0));
+    ui->heightArea->drawLine(QPoint(0,200), QPoint(4000, 200));
+    ui->heightArea->setPenColor(QColor(255, 165, 0));
 
     createActions();
     createMenus();
@@ -32,7 +35,7 @@ MainWindow::~MainWindow()
 
 
 void MainWindow::runBendsketch() {
-    Pipeline::runPipelineScribble(scribbleArea->getSketchData());
+    Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -50,7 +53,7 @@ void MainWindow::open()
         QString fileName = QFileDialog::getOpenFileName(this,
                                    tr("Open File"), QDir::currentPath());
         if (!fileName.isEmpty())
-            scribbleArea->openImage(fileName);
+            ui->scribbleArea->openImage(fileName);
     }
 }
 
@@ -63,9 +66,9 @@ void MainWindow::save()
 
 void MainWindow::penColor()
 {
-    QColor newColor = QColorDialog::getColor(scribbleArea->penColor());
+    QColor newColor = QColorDialog::getColor(ui->scribbleArea->penColor());
     if (newColor.isValid())
-        scribbleArea->setPenColor(newColor);
+        ui->scribbleArea->setPenColor(newColor);
 }
 
 void MainWindow::penWidth()
@@ -73,10 +76,10 @@ void MainWindow::penWidth()
     bool ok;
     int newWidth = QInputDialog::getInt(this, tr("Scribble"),
                                             tr("Select pen width:"),
-                                            scribbleArea->penWidth(),
+                                            ui->scribbleArea->penWidth(),
                                             1, 50, 1, &ok);
     if (ok)
-        scribbleArea->setPenWidth(newWidth);
+        ui->scribbleArea->setPenWidth(newWidth);
 }
 
 void MainWindow::about()
@@ -100,7 +103,7 @@ void MainWindow::createActions()
     }
 
     printAct = new QAction(tr("&Print..."), this);
-    connect(printAct, SIGNAL(triggered()), scribbleArea, SLOT(print()));
+    connect(printAct, SIGNAL(triggered()), ui->scribbleArea, SLOT(print()));
 
     exitAct = new QAction(tr("E&xit"), this);
     exitAct->setShortcuts(QKeySequence::Quit);
@@ -115,7 +118,7 @@ void MainWindow::createActions()
     clearScreenAct = new QAction(tr("&Clear Screen"), this);
     clearScreenAct->setShortcut(tr("Ctrl+L"));
     connect(clearScreenAct, SIGNAL(triggered()),
-            scribbleArea, SLOT(clearImage()));
+            ui->scribbleArea, SLOT(clearImage()));
 
     aboutAct = new QAction(tr("&About"), this);
     connect(aboutAct, SIGNAL(triggered()), this, SLOT(about()));
@@ -124,13 +127,13 @@ void MainWindow::createActions()
     connect(aboutQtAct, SIGNAL(triggered()), qApp, SLOT(aboutQt()));
 
     setToBoundary = new QAction(tr("&Boundary Stroke"), this);
-    connect(setToBoundary, SIGNAL(triggered()), scribbleArea, SLOT(setStrokeTypeToBoundary()));
+    connect(setToBoundary, SIGNAL(triggered()), ui->scribbleArea, SLOT(setStrokeTypeToBoundary()));
 
     setToConvex = new QAction(tr("&Convex Bending Stroke"), this);
-    connect(setToConvex, SIGNAL(triggered()), scribbleArea, SLOT(setStrokeTypeToConvexBend()));
+    connect(setToConvex, SIGNAL(triggered()), ui->scribbleArea, SLOT(setStrokeTypeToConvexBend()));
 
     setToConcave = new QAction(tr("&Concave Bending Stroke"), this);
-    connect(setToConcave, SIGNAL(triggered()), scribbleArea, SLOT(setStrokeTypeToConcaveBend()));
+    connect(setToConcave, SIGNAL(triggered()), ui->scribbleArea, SLOT(setStrokeTypeToConcaveBend()));
 
     runBendsketchAction = new QAction(tr("&Run Bendsketch"), this);
     connect(runBendsketchAction, SIGNAL(triggered()), this, SLOT(runBendsketch()));
@@ -171,7 +174,7 @@ void MainWindow::createMenus()
 
 bool MainWindow::maybeSave()
 {
-    if (scribbleArea->isModified()) {
+    if (ui->scribbleArea->isModified()) {
        QMessageBox::StandardButton ret;
        ret = QMessageBox::warning(this, tr("Scribble"),
                           tr("The image has been modified.\n"
@@ -199,7 +202,7 @@ bool MainWindow::saveFile(const QByteArray &fileFormat)
     if (fileName.isEmpty()) {
         return false;
     } else {
-        return scribbleArea->saveImage(fileName, fileFormat);
+        return ui->scribbleArea->saveImage(fileName, fileFormat);
     }
 }
 
@@ -207,35 +210,35 @@ bool MainWindow::saveFile(const QByteArray &fileFormat)
 
 void MainWindow::on_boundary_stroke_clicked()
 {
-    scribbleArea->setStrokeTypeToBoundary();
+    ui->scribbleArea->setStrokeTypeToBoundary();
 }
 
 void MainWindow::on_contour_stroke_clicked()
 {
-    scribbleArea->setStrokeTypeToContour();
+    ui->scribbleArea->setStrokeTypeToContour();
 }
 
 void MainWindow::on_start_height_valueChanged(double arg1)
 {
-    scribbleArea->setStartHeight(arg1);
+    ui->scribbleArea->setStartHeight(arg1);
 }
 
 void MainWindow::on_end_height_valueChanged(double arg1)
 {
-    scribbleArea->setEndHeight(arg1);
+    ui->scribbleArea->setEndHeight(arg1);
 }
 
 void MainWindow::on_concave_stroke_2_clicked()
 {
-    scribbleArea->setStrokeTypeToConvexBend();
+    ui->scribbleArea->setStrokeTypeToConvexBend();
 }
 
 void MainWindow::on_concave_stroke_clicked()
 {
-    scribbleArea->setStrokeTypeToConcaveBend();
+    ui->scribbleArea->setStrokeTypeToConcaveBend();
 }
 
 void MainWindow::on_run_bendsketch_clicked()
 {
-    Pipeline::runPipelineScribble(scribbleArea->getSketchData());
+    Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
 }

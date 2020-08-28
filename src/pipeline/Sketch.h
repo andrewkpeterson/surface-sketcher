@@ -4,10 +4,8 @@
 #include <Eigen/Dense>
 #include <vector>
 #include <set>
-#include "ScribbleArea.h"
+#include "src/drawing/ScribbleArea.h"
 #include "Triangulate.h"
-
-struct NSVGpath;
 
 struct Face;
 
@@ -48,7 +46,6 @@ public:
         return boundary_strokes;
     }
 
-    Stroke addBendingStrokeFromSVG(NSVGpath *path);
     Stroke addBendingStrokeFromScribble(const std::vector<Eigen::Vector2f> &s, int id);
     float getBendingStrokeSegmentLength() { return diagonal_of_bounding_box / 30.0f; }
     float getTriangleAndStrokePointDistanceCheck() const { return diagonal_of_bounding_box / 10.0f; }

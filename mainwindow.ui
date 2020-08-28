@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>872</width>
+    <width>794</width>
     <height>643</height>
    </rect>
   </property>
@@ -93,6 +93,18 @@
       </layout>
      </widget>
     </item>
+    <item>
+     <widget class="QWidget" name="top_scribble" native="true">
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="ScribbleArea" name="scribbleArea" native="true"/>
+       </item>
+       <item>
+        <widget class="ScribbleArea" name="heightArea" native="true"/>
+       </item>
+      </layout>
+     </widget>
+    </item>
    </layout>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -100,12 +112,20 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>872</width>
+     <width>794</width>
      <height>22</height>
     </rect>
    </property>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ScribbleArea</class>
+   <extends>QWidget</extends>
+   <header>ScribbleArea.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

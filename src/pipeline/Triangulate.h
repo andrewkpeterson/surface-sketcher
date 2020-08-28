@@ -17,9 +17,6 @@
 #include <QTextStream>
 #include <map>
 #include <tuple>
-#include <CGAL/Simple_cartesian.h>
-#include <CGAL/Surface_mesh.h>
-#include <CGAL/subdivision_method_3.h>
 
 struct FaceInfo2
 {
@@ -32,26 +29,18 @@ struct FaceInfo2
 class Mesh;
 class Sketch;
 
-typedef CGAL::Exact_predicates_inexact_constructions_kernel       K;
-//typedef CGAL::Triangulation_vertex_base_2<K>                      Vb;
-typedef CGAL::Delaunay_mesh_vertex_base_2<K>                Vb;
-typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K>    Fbb;
-//typedef CGAL::Constrained_triangulation_face_base_2<K,Fbb>        Fb;
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef CGAL::Delaunay_mesh_vertex_base_2<K> Vb;
+typedef CGAL::Triangulation_face_base_with_info_2<FaceInfo2,K> Fbb;
 typedef CGAL::Delaunay_mesh_face_base_2<K> Fb;
 typedef CGAL::Triangulation_data_structure_2<Vb, Fb> TDS;
-typedef CGAL::No_intersection_tag                                Itag;
-typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, CGAL::Exact_predicates_tag   >  CDT;
-//typedef CGAL::Exact_predicates_tag                               Itag;
-//typedef CGAL::Constrained_Delaunay_triangulation_2<K, CGAL::Default, Itag> CDT;
-typedef CDT::Point                                                Point;
-typedef CGAL::Polygon_2<K>                                        Polygon_2;
-typedef CGAL::Delaunay_mesh_size_criteria_2<CDT>                  Criteria;
-typedef CDT::Face_handle                                          Face_handle;
-typedef CDT::Vertex_handle                                        Vertex_handle;
-
-typedef CGAL::Simple_cartesian<double>         Kernel;
-typedef CGAL::Surface_mesh<Kernel::Point_3>    PolygonMesh;
-
+typedef CGAL::No_intersection_tag Itag;
+typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, CGAL::Exact_predicates_tag> CDT;
+typedef CDT::Point Point;
+typedef CGAL::Polygon_2<K> Polygon_2;
+typedef CGAL::Delaunay_mesh_size_criteria_2<CDT> Criteria;
+typedef CDT::Face_handle Face_handle;
+typedef CDT::Vertex_handle Vertex_handle;
 
 struct IntersectionResult {
     int A_stroke_idx;
@@ -85,8 +74,8 @@ private:
     static std::vector<Eigen::Vector2f> makeBoundary(const std::vector<SegmentedStroke> &strokes, const std::set<int> invalid_strokes);
     static void addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor);
     static std::pair<std::vector<SegmentedStroke>, std::set<int>> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
-    static constexpr float FINENESS = .04; //.1 normally, .2 for coarse
-    static constexpr float CRITERIA_PARAM = .001; //.001 normally
+    static constexpr float FINENESS = .05; // this is the bound on the area of the largest triangle, .1 normally, .2 for coarse
+    static constexpr float CRITERIA_PARAM = .001; //this is the bound on the length of the longest edge, .001 normally
     static constexpr float CONNECTION_THRESHOLD = .07; //.08
     static constexpr float SAME_POINT_THRESHOLD = .03; //.03
     static constexpr float SAME_INTERSECTION_THRESHOLD = .8;

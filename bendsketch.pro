@@ -18,7 +18,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    ScribbleArea.cpp \
+    src/drawing/ScribbleArea.cpp \
     main.cpp \
     mainwindow.cpp \
     src/pipeline/DirectionFieldInitializer.cpp \
@@ -27,10 +27,9 @@ SOURCES += \
     src/pipeline/Mesh.cpp \
     src/pipeline/Sketch.cpp \
     src/pipeline/Triangulate.cpp \
-    $$files(alglib/*.cpp, true)
 
 HEADERS += \
-    ScribbleArea.h \
+    src/drawing/ScribbleArea.h \
     mainwindow.h \
     src/pipeline/DirectionFieldInitializer.h \
     src/pipeline/DirectionFieldOptimizer.h \
@@ -40,8 +39,6 @@ HEADERS += \
     src/pipeline/Sketch.h \
     src/pipeline/Triangulate.h \
     src/utils/OBJWriter.h \
-    nanosvg/src/nanosvg.h \
-    $$files(alglib/*.h, true)
 
 INCLUDEPATH += /usr/local/include/eigen3 \
                /usr/local/include/CGAL \

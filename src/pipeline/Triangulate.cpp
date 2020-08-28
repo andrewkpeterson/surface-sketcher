@@ -1,5 +1,4 @@
 #include "Triangulate.h"
-#include <CGAL/lloyd_optimize_mesh_2.h>
 #include "Mesh.h"
 #include "Sketch.h"
 
@@ -148,6 +147,7 @@ std::vector<Eigen::Vector2f> Triangulate::makeBoundary(const std::vector<Segment
                 }
             }
         }
+
         for (int i = 0; i < current_stroke.last_index_neighbors.size(); i++) {
             int idx = current_stroke.last_index_neighbors[i].neighbor_idx;
             if (used_strokes.find(idx) == used_strokes.end() && invalid_strokes.find(idx) == invalid_strokes.end()) {
@@ -247,12 +247,10 @@ std::pair<std::vector<SegmentedStroke>, std::set<int>> Triangulate::segmentBound
         QTextStream stream(&magnitudes);
         char buf[512];
         for (int i = 0; i < segmented_strokes.size(); i++) {
-            //if (invalid_strokes.find(i) == invalid_strokes.end()) {
-                for (int j = 0; j < segmented_strokes[i].points.size(); j++) {
-                    std::sprintf(buf, "%f %f %d", segmented_strokes[i].points[j].x(), segmented_strokes[i].points[j].y(), i);
-                    stream << buf << endl;
-                }
-            //}
+            for (int j = 0; j < segmented_strokes[i].points.size(); j++) {
+                std::sprintf(buf, "%f %f %d", segmented_strokes[i].points[j].x(), segmented_strokes[i].points[j].y(), i);
+                stream << buf << endl;
+            }
         }
     }
 
@@ -272,16 +270,18 @@ void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
     Polygon_2 polygon;
     for (int i = 0; i < boundary.size(); i += NUMBER_OF_BOUNDARY_POINTS_TO_SKIP) {
         polygon.push_back(Point(boundary[i].x(), boundary[i].y()));
-        std::cout << "x: " << boundary[i].x() << " y: " << boundary[i].y() << std::endl;
     }
 
-    QFile magnitudes("boundary.txt");
-    if (magnitudes.open(QIODevice::ReadWrite | QFile::Truncate)) {
-        QTextStream stream(&magnitudes);
-        char buf[512];
-        for (int i = 0; i < boundary.size(); i += NUMBER_OF_BOUNDARY_POINTS_TO_SKIP) {
-            std::sprintf(buf, "%f %f", boundary[i].x(), boundary[i].y());
-            stream << buf << endl;
+    // write boundaries to a file for debugging
+    {
+        QFile magnitudes("boundary.txt");
+        if (magnitudes.open(QIODevice::ReadWrite | QFile::Truncate)) {
+            QTextStream stream(&magnitudes);
+            char buf[512];
+            for (int i = 0; i < boundary.size(); i += NUMBER_OF_BOUNDARY_POINTS_TO_SKIP) {
+                std::sprintf(buf, "%f %f", boundary[i].x(), boundary[i].y());
+                stream << buf << endl;
+            }
         }
     }
 
@@ -296,7 +296,6 @@ void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
 
     cdt.insert_constraint(polygon.vertices_begin(), polygon.vertices_end(), true);
 
-    CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
     CGAL::refine_Delaunay_mesh_2(cdt, Criteria(CRITERIA_PARAM, FINENESS));
 
     // mark which faces are actually inside the constraints. If we don't do this step
@@ -323,51 +322,5 @@ void Triangulate::triangulate(Mesh &mesh, Sketch &sketch) {
         }
     }
 
-    PolygonMesh pmesh;
-    std::map<Vertex_handle, PolygonMesh::vertex_index> vertices;
-    std::set<PolygonMesh::face_index> faces;
-    for (auto it = cdt.faces_begin(); it != cdt.faces_end(); it++) {
-        if (!cdt.is_infinite(it) && domain_info[it].in_domain()) {
-            for (int i = 0; i < 3; i++) {
-                if (vertices.find(it->vertex(i)) == vertices.end()) {
-                    vertices[it->vertex(i)] = pmesh.add_vertex(Kernel::Point_3(it->vertex(i)->point().x(), it->vertex(i)->point().y(), 0));
-                }
-            }
-            faces.insert(pmesh.add_face(vertices[it->vertex(0)], vertices[it->vertex(1)], vertices[it->vertex(2)]));
-        }
-    }
-
-    //CGAL::Subdivision_method_3::Loop_subdivision(pmesh, CGAL::parameters::number_of_iterations(2));
-    std::cout << "done" << std::endl;
-
     mesh.addSurfaceToMesh(info, sketch);
-    mesh.squishTriangulation();
-
-    /*
-    // save the 2D triangulation to an obj so that it can be checked
-    QFile file("triangulation.obj");
-    if (file.open(QIODevice::ReadWrite | QFile::Truncate)) {
-        QTextStream stream(&file);
-        char buf[512];
-        int count = 1;
-        std::map<PolygonMesh::Vertex_index, int> m;
-        for (PolygonMesh::Vertex_index idx : pmesh.vertices()) {
-            std::sprintf(buf, "v %f %f %f", pmesh.point(idx).x(), pmesh.point(idx).y(), pmesh.point(idx).z());
-            stream << buf << endl;
-            m[idx] = count;
-            count++;
-        }
-
-        for (PolygonMesh::Face_index idx : pmesh.faces()) {
-            stream << "f ";
-            CGAL::Vertex_around_face_iterator<PolygonMesh> vbegin, vend;
-            for(PolygonMesh::Vertex_index vd : pmesh.vertices_around_face(pmesh.halfedge(idx))) {
-                std::sprintf(buf, "%d ", int(m[vd]));
-                stream << buf;
-            }
-
-            stream << endl;
-        }
-    }
-    */
 }

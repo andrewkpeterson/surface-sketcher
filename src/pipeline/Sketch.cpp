@@ -1,7 +1,4 @@
 #include "Sketch.h"
-#define NANOSVG_IMPLEMENTATION
-#define NANOSVG_CPLUSPLUS
-#include "lib/nanosvg/src/nanosvg.h"
 #include "Mesh.h"
 #include <iostream>
 
@@ -86,31 +83,6 @@ Sketch::Sketch(const SketchData &data) {
     height = data.height / SKETCH_SCALE;
     diagonal_of_bounding_box = std::sqrt(width * width + height * height);
 
-    /*
-    for (int line_idx = 0; line_idx < data.boundary.size(); line_idx++) {
-        std::vector<Eigen::Vector2f> segment;
-        const std::vector<Eigen::Vector2f> &line = data.boundary[line_idx];
-        for (int i = 0; i < line.size(); i++) {
-            // add a boundary point and make sure it is not the same as the previous point
-            if (i == 0 || (i > 0 && (line[i - 1] - line[i]).norm() > 0)) {
-                segment.push_back(line[i]);
-            }
-        }
-        boundary_strokes.push_back(std::move(segment));
-    }
-
-    for (int line_idx = 0; line_idx < data.contour.size(); line_idx++) {
-        std::vector<Eigen::Vector2f> segment;
-        const std::vector<Eigen::Vector2f> &line = data.contour[line_idx];
-        for (int i = 0; i < line.size(); i++) {
-            // add a boundary point and make sure it is not the same as the previous point
-            if (i == 0 || (i > 0 && (line[i - 1] - line[i]).norm() > 0)) {
-                segment.push_back(line[i]);
-            }
-        }
-        boundary_strokes.push_back(std::move(segment));
-    }
-    */
     boundary_strokes.insert(boundary_strokes.begin(), data.boundary.begin(), data.boundary.end());
     boundary_strokes.insert(boundary_strokes.begin(), data.contour.begin(), data.contour.end());
 
