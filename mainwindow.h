@@ -45,6 +45,8 @@ private slots:
 
     void on_run_bendsketch_clicked();
 
+    void on_radius_valueChanged(double arg1);
+
 private:
     void createActions();
     void createMenus();

@@ -74,7 +74,7 @@ private:
     static std::vector<Eigen::Vector2f> makeBoundary(const std::vector<SegmentedStroke> &strokes, const std::set<int> invalid_strokes);
     static void addToBoundary(const SegmentedStroke &stroke, std::vector<Eigen::Vector2f> &boundary, bool met_at_idx_0_neighbor);
     static std::pair<std::vector<SegmentedStroke>, std::set<int>> segmentBoundaryStrokes(const std::vector<std::vector<Eigen::Vector2f>> &strokes);
-    static constexpr float FINENESS = .05; // this is the bound on the area of the largest triangle, .1 normally, .2 for coarse
+    static constexpr float FINENESS = .2; // this is the bound on the area of the largest triangle, .1 normally, .2 for coarse
     static constexpr float CRITERIA_PARAM = .001; //this is the bound on the length of the longest edge, .001 normally
     static constexpr float CONNECTION_THRESHOLD = .07; //.08
     static constexpr float SAME_POINT_THRESHOLD = .03; //.03

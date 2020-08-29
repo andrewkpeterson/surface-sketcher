@@ -53,23 +53,17 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 
-win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/release/ -lceres.1.14.0
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/debug/ -lceres.1.14.0
-else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/ -lceres.1.14.0
+unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/ -lceres.1.14.0
 
 INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
 DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
 
-win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/release/ -lglog.0.4.0
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/debug/ -lglog.0.4.0
-else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/ -lglog.0.4.0
+unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/ -lglog.0.4.0
 
 INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
 DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
 
-win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/release/ -lgflags.2.2.2
-else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/debug/ -lgflags.2.2.2
-else:unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/ -lgflags.2.2.2
+unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/ -lgflags.2.2.2
 
 INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include
 DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include

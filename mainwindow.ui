@@ -27,10 +27,38 @@
        <string/>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="7" column="0">
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Start Height</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
         <widget class="QRadioButton" name="concave_stroke">
          <property name="text">
           <string>Concave Bending Stroke</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>End Height</string>
+         </property>
+        </widget>
+       </item>
+       <item row="10" column="0">
+        <widget class="QPushButton" name="run_bendsketch">
+         <property name="text">
+          <string>Run BendSketch</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QDoubleSpinBox" name="end_height">
+         <property name="singleStep">
+          <double>0.010000000000000</double>
          </property>
         </widget>
        </item>
@@ -41,10 +69,10 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="1">
-        <widget class="QDoubleSpinBox" name="end_height">
-         <property name="singleStep">
-          <double>0.010000000000000</double>
+       <item row="7" column="0">
+        <widget class="QRadioButton" name="concave_stroke_2">
+         <property name="text">
+          <string>Convex Bending Stroke</string>
          </property>
         </widget>
        </item>
@@ -62,33 +90,15 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="label">
-         <property name="text">
-          <string>End Height</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_2">
-         <property name="text">
-          <string>Start Height</string>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="0">
-        <widget class="QPushButton" name="run_bendsketch">
-         <property name="text">
-          <string>Run BendSketch</string>
-         </property>
-        </widget>
-       </item>
        <item row="6" column="0">
-        <widget class="QRadioButton" name="concave_stroke_2">
+        <widget class="QLabel" name="label_3">
          <property name="text">
-          <string>Convex Bending Stroke</string>
+          <string>Radius</string>
          </property>
         </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QDoubleSpinBox" name="radius"/>
        </item>
       </layout>
      </widget>
@@ -98,9 +108,6 @@
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
         <widget class="ScribbleArea" name="scribbleArea" native="true"/>
-       </item>
-       <item>
-        <widget class="ScribbleArea" name="heightArea" native="true"/>
        </item>
       </layout>
      </widget>
@@ -122,7 +129,7 @@
   <customwidget>
    <class>ScribbleArea</class>
    <extends>QWidget</extends>
-   <header>ScribbleArea.h</header>
+   <header>src/drawing/ScribbleArea.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

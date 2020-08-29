@@ -12,7 +12,7 @@ public:
 
     // if the radius of the estimated circle is not regualrized, we will underestimate the normal curvature
     // and the surface curvature will vanish
-    static constexpr double NORMAL_CURVATURE_MU = 1e-5; //2e-5; // 1e-6 // this was 2e-5 in the paper
+    static constexpr double NORMAL_CURVATURE_MU = 1e-6; //2e-5; // 1e-6 // this was 2e-5 in the paper
 
 private:
 
@@ -82,13 +82,13 @@ private:
     static constexpr float INITIAL_CURVATURE_MAGNITUDE = 1;
 
     static constexpr float CURVATURE_MAGNITUDE_SMOOTHNESS_BETA = .01;
-    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 10;
+    static constexpr float CURVATURE_MAGNITUDE_CONSTRAINT_WEIGHT = 1e6;
 
-    static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 1e6; // omega_0, changes for different cases
+    static constexpr float BOUNDARY_POSITIONAL_CONSTRAINT_WEIGHT = 10; // omega_0, changes for different cases
     static constexpr float BOUNDARY_REGULARITY_CONSTRAINT_WEIGHT = 1; // omega_1, same for all cases
     static constexpr float BOUNDARY_HEIGHT = 0;
 
-    static constexpr float CONTOUR_CONSTRAINT_WEIGHT = 1e3;
+    static constexpr float CONTOUR_CONSTRAINT_WEIGHT = .5;
 };
 
 #endif // HEIGHTFIELDSOLVER_H

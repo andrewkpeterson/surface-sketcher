@@ -115,7 +115,6 @@ bool ScribbleArea::openImage(const QString &fileName)
 
     file.close();
 
-
     QSize newSize = loadedImage.size().expandedTo(size());
     resizeImage(&loadedImage, newSize);
     image = loadedImage;
@@ -233,19 +232,35 @@ BoundaryStroke ScribbleArea::createBoundaryStroke() {
     if (m_type == StrokeType::CONTOUR) {
         stroke.contour = true;
     }
-    float L = end_height - start_height;
-    float stroke_length = 0;
-    float k = 1;
-    for (int i = 1; i < currentStroke.size(); i++) {
-        stroke_length += (currentStroke[i-1] - currentStroke[i]).norm();
-    }
+    if (radius == 0) {
+        float L = end_height - start_height;
+        float stroke_length = 0;
+        float k = 1;
+        for (int i = 1; i < currentStroke.size(); i++) {
+            stroke_length += (currentStroke[i-1] - currentStroke[i]).norm();
+        }
 
-    float accumulated_length = 0;
-    for (int i = 0; i < currentStroke.size() - 1; i++) {
-        float t = 12 * (.5 * accumulated_length - stroke_length);
-        float height = L / (1 + std::exp(-k * t));
-        stroke.heights.push_back(height);
-        if (i < currentStroke.size() - 1) { accumulated_length += (currentStroke[i] - currentStroke[i+1]).norm(); }
+        float accumulated_length = 0;
+        for (int i = 0; i < currentStroke.size() - 1; i++) {
+            float t = 12 * (accumulated_length - .5 * stroke_length);
+            float height = start_height + L / (1 + std::exp(-k * t));
+            stroke.heights.push_back(-height);
+            if (i < currentStroke.size() - 1) { accumulated_length += (currentStroke[i] - currentStroke[i+1]).norm(); }
+        }
+    }
+    else  {
+        float stroke_length = 0;
+        for (int i = 1; i < currentStroke.size(); i++) {
+            stroke_length += (currentStroke[i-1] - currentStroke[i]).norm();
+        }
+        float accumulated_length = 0;
+        for (int i = 0; i < currentStroke.size(); i++) {
+            for (int i = 0; i < currentStroke.size() - 1; i++) {
+                float height = radius * std::sin(M_PI * accumulated_length / stroke_length);
+                stroke.heights.push_back(-height);
+                if (i < currentStroke.size() - 1) { accumulated_length += (currentStroke[i] - currentStroke[i+1]).norm(); }
+            }
+        }
     }
     return stroke;
 }
@@ -291,20 +306,39 @@ void ScribbleArea::drawLineTo(const QPoint &endPoint)
     painter.drawLine(lastPoint, endPoint);
     modified = true;
 
-    Eigen::Vector2f start = Eigen::Vector2f(lastPoint.x(), lastPoint.y());
-    Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
-    float length = (end - start).norm();
-    if (length > 0) {
-        float t = 0;
-        while (t < 1) {
-            t += DISTANCE_BETWEEN_POINTS / length;
-            Eigen::Vector2f point = start + (end - start) * t;
-            currentStroke.push_back(point / Sketch::SKETCH_SCALE);
+    if (!isHeightScribbleArea) {
+        Eigen::Vector2f start = Eigen::Vector2f(lastPoint.x(), lastPoint.y());
+        Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
+        float length = (end - start).norm();
+        if (length > 0) {
+            float t = 0;
+            while (t < 1) {
+                t += DISTANCE_BETWEEN_POINTS / length;
+                Eigen::Vector2f point = start + (end - start) * t;
+                currentStroke.push_back(point / Sketch::SKETCH_SCALE);
+            }
+            currentStroke.push_back(end / Sketch::SKETCH_SCALE);
         }
-        currentStroke.push_back(end / Sketch::SKETCH_SCALE);
+        strokeCount = 0;
+        strokeCount++;
+    } else {
+        Eigen::Vector2f start = Eigen::Vector2f(lastPoint.x(), lastPoint.y());
+        Eigen::Vector2f end = Eigen::Vector2f(endPoint.x(), endPoint.y());
+        float length = (end - start).norm();
+        if (length > 0) {
+            float t = 0;
+            while (t < 1) {
+                t += DISTANCE_BETWEEN_POINTS / length;
+                Eigen::Vector2f point = start + (end - start) * t;
+                m_heights.push_back((200 - point.y()) / Sketch::SKETCH_SCALE);
+                std::cout << (200 - point.y()) / Sketch::SKETCH_SCALE << std::endl;
+            }
+            m_heights.push_back((200 - end.y()) / Sketch::SKETCH_SCALE);
+            std::cout << (200 - end.y()) / Sketch::SKETCH_SCALE << std::endl;
+        }
+        strokeCount = 0;
+        strokeCount++;
     }
-    strokeCount = 0;
-    strokeCount++;
 
     int rad = (myPenWidth / 2) + 2;
     update(QRect(lastPoint, endPoint).normalized()
@@ -334,6 +368,10 @@ void ScribbleArea::resizeImage(QImage *image, const QSize &newSize)
     QPainter painter(&newImage);
     painter.drawImage(QPoint(0, 0), *image);
     *image = newImage;
+}
+
+void ScribbleArea::setHeightCurve(std::vector<float> heights) {
+    m_heights = heights;
 }
 
 void ScribbleArea::print()

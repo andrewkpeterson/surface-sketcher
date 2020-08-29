@@ -41,6 +41,7 @@ public:
 
     ScribbleArea(QWidget *parent = 0);
 
+    void setHeightCurve(std::vector<float> heights);
     void drawLine(QPoint start, QPoint end);
     bool loadImage(const QString &fileName);
     bool openImage(const QString &fileName);
@@ -49,6 +50,10 @@ public:
     void setPenWidth(int newWidth);
     void setStartHeight(float height) { start_height = height; }
     void setEndHeight(float height) { end_height = height; }
+    std::vector<float> getHeights() { return m_heights; }
+    void clearHeights() { m_heights.clear(); }
+    void setHeightScribbleArea(bool b) { isHeightScribbleArea = b; }
+    void setRadius(float r) { radius = r; }
 
     bool isModified() const { return modified; }
     QColor penColor() const { return myPenColor; }
@@ -102,6 +107,10 @@ protected:
 
     float start_height = 0;
     float end_height = 0;
+    float radius = 0;
+
+    bool isHeightScribbleArea = false;
+    std::vector<float> m_heights;
 
     float DISTANCE_BETWEEN_POINTS = 2;
 

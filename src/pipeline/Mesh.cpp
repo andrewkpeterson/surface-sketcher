@@ -264,6 +264,7 @@ void Mesh::addSurfaceToMesh(std::map<Face_handle, bool> &info, Sketch &sketch) {
                 if (dist < best_dist) {
                     best_stroke_idx = i;
                     best_point_idx = j;
+                    best_dist = dist;
                 }
             }
         }

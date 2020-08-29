@@ -78,8 +78,8 @@ public:
 
             mesh.forEachVertex(func1);
             mesh.forEachTriangle(func2);
-            mesh.forEachVertex(func3);
-            mesh.forEachTriangle(func4);
+            //mesh.forEachVertex(func3);
+            //mesh.forEachTriangle(func4);
         }
 
         QFile vectors(direction_field_file.c_str());

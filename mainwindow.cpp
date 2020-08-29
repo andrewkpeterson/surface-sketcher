@@ -16,15 +16,10 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    ui->heightArea->loadImage("blank.bmp");
-    ui->heightArea->setPenColor(QColor(0, 0, 0));
-    ui->heightArea->drawLine(QPoint(0,200), QPoint(4000, 200));
-    ui->heightArea->setPenColor(QColor(255, 165, 0));
-
     createActions();
     createMenus();
 
-    setWindowTitle(tr("bendsketch-lite"));
+    setWindowTitle(tr("sketched-surfaces"));
     resize(500, 500);
 }
 
@@ -241,4 +236,9 @@ void MainWindow::on_concave_stroke_clicked()
 void MainWindow::on_run_bendsketch_clicked()
 {
     Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
+}
+
+void MainWindow::on_radius_valueChanged(double arg1)
+{
+    ui->scribbleArea->setRadius(arg1);
 }

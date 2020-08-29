@@ -25,7 +25,7 @@ void HeightFieldSolver::solveForHeightField(Mesh &mesh, Sketch &sketch) {
         minimizeELambda(mesh, sketch);
         if (i == 0) { OBJWriter::writeMagnitudes(mesh); }
         optimizeHeightField(mesh, sketch);
-        std::cout << "completed an iteration" << std::endl;
+        //std::cout << "completed an iteration" << std::endl;
         char buf[50];
         std::sprintf(buf, "iteration%d.obj", i);
         OBJWriter::writeOBJ(mesh,buf,"directions.txt");
@@ -363,14 +363,8 @@ void HeightFieldSolver::optimizeHeightField(Mesh &mesh, const Sketch &sketch) {
     A.makeCompressed();
     Eigen::SparseLU<SparseMat> solver(A);
     solver.analyzePattern(A);
-    std::cout << solver.lastErrorMessage() << std::endl;
-    std::cout << solver.info() << std::endl;
     solver.factorize(A);
-    std::cout << solver.lastErrorMessage() << std::endl;
-    std::cout << solver.info() << std::endl;
     Eigen::VectorXd x = solver.solve(-b); // this is -b rather than bu because the solver solves Ax = bu, but b was set up to solve Ax + bu = 0
-    std::cout << solver.lastErrorMessage() << std::endl;
-    std::cout << solver.info() << std::endl;
 
     mesh.forEachVertex([&](std::shared_ptr<Vertex> v) {
         v->height = x(v->index);
@@ -642,7 +636,6 @@ void HeightFieldSolver::addCoefficientsForRegualrityConstraint(Mesh &mesh, const
         }
         visited_vertices.insert(v);
     });
-    std::cout << mesh.getEdgeVertices().size() << " " << count << std::endl;
 }
 
 void HeightFieldSolver::addCoefficientsForRegualrityConstraintHelper(Mesh &mesh, const Sketch &sketch, std::map<std::pair<int,int>, double> &m, std::shared_ptr<Vertex> v1,
@@ -673,7 +666,6 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
 
     mesh.forEachBoundaryTriangle([&](Face *f) {
         if (!f->contour) { return; }
-        std::cout << "contour" << std::endl;
 
         std::shared_ptr<Vertex> interior_vertex = nullptr;
         int num_interior_verts = 0;
@@ -750,8 +742,8 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
 
         Eigen::Vector3f N_bdry(N_bdry2D.x(), N_bdry2D.y(), 0);
 
-        //Eigen::Vector3f g = (2 * mesh.calculateVertexNormal(interior_vertex).normalized() + N_bdry.normalized()).normalized();
-        Eigen::Vector3f g = N_bdry.normalized();
+        Eigen::Vector3f N = (2 * mesh.calculateVertexNormal(interior_vertex).normalized() + N_bdry.normalized()).normalized();
+        //Eigen::Vector3f g = N_bdry.normalized();
 
         std::shared_ptr<Vertex> i = f->vertices[0];
         std::shared_ptr<Vertex> j = f->vertices[1];
@@ -767,7 +759,6 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
         Eigen::Vector2f C_ji = (ij_perp / (2.0 * f->area));
 
         Eigen::Vector2f gradient2D = C_ik * (j->height - i->height) + C_ji * (k->height - i->height);
-        std::cout << gradient2D << std::endl;
 
         // the bigger this is, the closer the boundary faces will be to being orthogonal to the drawing plane
         // We need to normalize the normal created from the gradient of the height field because we are
@@ -777,15 +768,15 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
         // the current normal is (-df/dx, -df/dy, 1)
         // we need to treat the norm of the normal created from the gradient as a constant in the iteration, because that
         // is the only way we can solve the optimization using a linear system
-        float Kx_i = -(-C_ik.x() - C_ji.x()) / normal_from_gradient_norm;
-        float Ky_i = -(-C_ik.y() - C_ji.y()) / normal_from_gradient_norm;
-        float Kx_j = -C_ik.x() / normal_from_gradient_norm;
-        float Ky_j = -C_ik.y() / normal_from_gradient_norm;
-        float Kx_k = -C_ji.x() / normal_from_gradient_norm;
-        float Ky_k = -C_ji.y() / normal_from_gradient_norm;
+        float Kx_i = -(-C_ik.x() - C_ji.x());
+        float Ky_i = -(-C_ik.y() - C_ji.y());
+        float Kx_j = -C_ik.x();
+        float Ky_j = -C_ik.y();
+        float Kx_k = -C_ji.x();
+        float Ky_k = -C_ji.y();
 
-        float constant_x = -g.x();
-        float constant_y = -g.y();
+        float g_x = -N.x() / N.z();
+        float g_y = -N.y() / N.z();
 
         float mult = 2 * f->area / boundary_area * CONTOUR_CONSTRAINT_WEIGHT;
 
@@ -796,7 +787,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Kx_i * Kx_j, m);
             std::pair<int, int> p3(i->index, k->index);
             addToSparseMap(p3, mult * Kx_i * Kx_k, m);
-            b(i->index) += mult * Kx_i * constant_x;
+            b(i->index) += mult * Kx_i * g_x;
         }
 
         {
@@ -806,7 +797,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Kx_j * Kx_j, m);
             std::pair<int, int> p3(j->index, k->index);
             addToSparseMap(p3, mult * Kx_j * Kx_k, m);
-            b(j->index) += mult * Kx_j * constant_x;
+            b(j->index) += mult * Kx_j * g_x;
         }
 
         {
@@ -816,7 +807,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Kx_k * Kx_j, m);
             std::pair<int, int> p3(k->index, k->index);
             addToSparseMap(p3, mult * Kx_k * Kx_k, m);
-            b(k->index) += mult * Kx_k * constant_x;
+            b(k->index) += mult * Kx_k * g_x;
         }
 
         {
@@ -826,7 +817,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Ky_i * Ky_j, m);
             std::pair<int, int> p3(i->index, k->index);
             addToSparseMap(p3, mult * Ky_i * Ky_k, m);
-            b(i->index) += mult * Ky_i * constant_y;
+            b(i->index) += mult * Ky_i * g_y;
         }
 
         {
@@ -836,7 +827,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Ky_j * Ky_j, m);
             std::pair<int, int> p3(j->index, k->index);
             addToSparseMap(p3, mult * Ky_j * Ky_k, m);
-            b(j->index) += mult * Ky_j * constant_y;
+            b(j->index) += mult * Ky_j * g_y;
         }
 
         {
@@ -846,7 +837,7 @@ void HeightFieldSolver::addCoefficientsForEContour(Mesh &mesh, const Sketch &ske
             addToSparseMap(p2, mult * Ky_k * Ky_j, m);
             std::pair<int, int> p3(k->index, k->index);
             addToSparseMap(p3, mult * Ky_k * Ky_k, m);
-            b(k->index) += mult * Ky_k * constant_y;
+            b(k->index) += mult * Ky_k * g_y;
         }
 
     });
