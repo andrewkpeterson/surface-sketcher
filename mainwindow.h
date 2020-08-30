@@ -29,7 +29,7 @@ private slots:
     void penColor();
     void penWidth();
     void about();
-    void runBendsketch();
+    void runSurfaceSketcher();
 
     void on_boundary_stroke_clicked();
 
@@ -43,9 +43,9 @@ private slots:
 
     void on_concave_stroke_clicked();
 
-    void on_run_bendsketch_clicked();
-
     void on_radius_valueChanged(double arg1);
+
+    void on_run_surface_sketcher_clicked();
 
 private:
     void createActions();
@@ -72,7 +72,7 @@ private:
     QAction *setToBoundary;
     QAction *setToConcave;
     QAction *setToConvex;
-    QAction *runBendsketchAction;
+    QAction *runAction;
 
     Ui::MainWindow *ui;
 };

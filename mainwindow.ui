@@ -49,9 +49,9 @@
         </widget>
        </item>
        <item row="10" column="0">
-        <widget class="QPushButton" name="run_bendsketch">
+        <widget class="QPushButton" name="run_surface_sketcher">
          <property name="text">
-          <string>Run BendSketch</string>
+          <string>Run Surface-Sketcher</string>
          </property>
         </widget>
        </item>

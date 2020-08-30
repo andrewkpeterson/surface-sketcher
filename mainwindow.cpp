@@ -29,7 +29,7 @@ MainWindow::~MainWindow()
 }
 
 
-void MainWindow::runBendsketch() {
+void MainWindow::runSurfaceSketcher() {
     Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
 }
 
@@ -130,8 +130,8 @@ void MainWindow::createActions()
     setToConcave = new QAction(tr("&Concave Bending Stroke"), this);
     connect(setToConcave, SIGNAL(triggered()), ui->scribbleArea, SLOT(setStrokeTypeToConcaveBend()));
 
-    runBendsketchAction = new QAction(tr("&Run Bendsketch"), this);
-    connect(runBendsketchAction, SIGNAL(triggered()), this, SLOT(runBendsketch()));
+    runAction = new QAction(tr("&Run Surface Sketcher"), this);
+    connect(runAction, SIGNAL(triggered()), this, SLOT(runSurfaceSketcher()));
 }
 
 void MainWindow::createMenus()
@@ -153,11 +153,11 @@ void MainWindow::createMenus()
     helpMenu->addAction(aboutAct);
     helpMenu->addAction(aboutQtAct);
 
-    strokeMenu = new QMenu(tr("&Bendsketch Actions"), this);
+    strokeMenu = new QMenu(tr("&Actions"), this);
     strokeMenu->addAction(setToBoundary);
     strokeMenu->addAction(setToConvex);
     strokeMenu->addAction(setToConcave);
-    strokeMenu->addAction(runBendsketchAction);
+    strokeMenu->addAction(runAction);
 
     menuBar()->addMenu(fileMenu);
     menuBar()->addMenu(optionMenu);
@@ -233,12 +233,12 @@ void MainWindow::on_concave_stroke_clicked()
     ui->scribbleArea->setStrokeTypeToConcaveBend();
 }
 
-void MainWindow::on_run_bendsketch_clicked()
-{
-    Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
-}
-
 void MainWindow::on_radius_valueChanged(double arg1)
 {
     ui->scribbleArea->setRadius(arg1);
+}
+
+void MainWindow::on_run_surface_sketcher_clicked()
+{
+    Pipeline::runPipelineScribble(ui->scribbleArea->getSketchData());
 }
