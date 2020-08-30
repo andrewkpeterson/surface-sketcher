@@ -19,7 +19,7 @@ MainWindow::MainWindow(QWidget *parent) :
     createActions();
     createMenus();
 
-    setWindowTitle(tr("sketched-surfaces"));
+    setWindowTitle(tr("surface-sketcher"));
     resize(500, 500);
 }
 
