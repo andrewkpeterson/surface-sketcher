@@ -62,6 +62,10 @@ Finally, we have the solved surface.
 * CGAL 5.0.2
 * Ceres-Solver 1.14.0
 
+### Build Instructions
+
+Fill in the paths to your installations of the dependencies in `surface_sketcher.pro` on lines 20 through 25. Then, in the root directory of the project, run `qmake surface_sketcher.pro`. Then run `make` and the program should be built. Alternatively, you can build the project in Qt Creator after filling in the paths in `surface_sketcher.pro`.
+
 ### References
 
 These are the books and papers that I found helpful when working on this project.
