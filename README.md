@@ -68,6 +68,7 @@ These are the books and papers that I found helpful when working on this project
 
 * BendSketch: Modeling Freeform Surfaces Through 2D Sketching by Li et al. (This was the main motivation for this project.)
 * Polygon Mesh Processing by Botsch et al. (This book was useful for understanding how a gradient of a function defined at each vertex in a triangle mesh is calculated.)
+* Differential Geometry of Curves and Surfaces by Tapp (This book is a great introduction to differential geometry.)
 * Designing N-PolyVector Fields with Complex Polynomials by Diamanti et al. (This paper helped me understand the PolyVector representation, which is used to find the curvature direction field.)
 * BendFields: Regularized Curvature Fields from Rough Concept Sketches by Iarussi et al. (This paper was useful for understanding the BendField energy used in the BendSketch paper.)
 * Rotational Symmetry Field Design on Surfaces by Palacios et al. (This paper helped me learn more about N-RoSy's, or N-way rotational symmetries, which were generalized by the PolyVector representation.)
