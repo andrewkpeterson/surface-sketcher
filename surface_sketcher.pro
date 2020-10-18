@@ -1,4 +1,4 @@
-QT       += core gui xml
+QT += core gui xml
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -16,6 +16,14 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # In order to do so, uncomment the following line.
 # You can also select to disable deprecated APIs only up to a certain version of Qt.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
+
+EIGEN_PATH = # path to eigen3 directory inside of the include directory of eigen installation (i.e. /usr/local/Cellar/eigen/3.3.7/include/eigen3)
+CGAL_PATH = # path to CGAL installation (e.g. /usr/local/Cellar/CGAL/5.1)
+BOOST_PATH = # path to boost installation (e.g. /usr/local/Cellar/boost/1.73.0)
+CERES_PATH = # path to ceres-solver installation (e.g. /usr/local/Cellar/ceres-solver/1.14.0_12)
+GLOG_PATH = # path to glog installation (e.g. /usr/local/Cellar/glog/0.4.0)
+GFLAGS_PATH = # path to gflags installation (e.g. /usr/local/Cellar/gflags/2.2.2)
+
 
 SOURCES += \
     src/drawing/ScribbleArea.cpp \
@@ -40,9 +48,9 @@ HEADERS += \
     src/pipeline/Triangulate.h \
     src/utils/OBJWriter.h \
 
-INCLUDEPATH += /usr/local/include/eigen3 \
-               /usr/local/include/CGAL \
-               /usr/local/include/boost \
+INCLUDEPATH = $${EIGEN_PATH} \
+               $${CGAL_PATH}/include \
+               $${BOOST_PATH}/include \
 
 FORMS += \
     mainwindow.ui
@@ -52,18 +60,14 @@ qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
+LIBS += -L$$CERES_PATH/lib/ -lceres
+INCLUDEPATH += $$CERES_PATH/include
+DEPENDPATH += $$CERES_PATH/include
 
-unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/lib/ -lceres.1.14.0
+LIBS += -L$$GLOG_PATH/lib/ -lglog
+INCLUDEPATH += $$GLOG_PATH/include
+DEPENDPATH += $$GLOG_PATH/include
 
-INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
-DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/ceres-solver/1.14.0_12/include
-
-unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/lib/ -lglog.0.4.0
-
-INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
-DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/glog/0.4.0/include
-
-unix: LIBS += -L$$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/lib/ -lgflags.2.2.2
-
-INCLUDEPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include
-DEPENDPATH += $$PWD/../../../../../../../usr/local/Cellar/gflags/2.2.2/include
+LIBS += -L$$GFLAGS_PATH/lib/ -lgflags
+INCLUDEPATH += $$GFLAGS_PATH/include
+DEPENDPATH += $$GFLAGS_PATH/include

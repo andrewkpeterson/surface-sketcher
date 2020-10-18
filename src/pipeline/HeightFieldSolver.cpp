@@ -1,5 +1,4 @@
 #include "HeightFieldSolver.h"
-#include "alglib/optimization.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include "ceres/ceres.h"
